@@ -46,9 +46,9 @@ define('PKS_PIC', FILE_BASE.'pks/pics/');				// 車輛入車格照片存檔路�
 
 define('EXPORT_BASE', '/home/data/export/');			// 檔案匯出根路徑  
    
-define('STATION_NAME', '尚未設定');		// 本場站名稱
+define('STATION_NAME', '未設定');						// 本場站名稱
 define('STATION_NO', 54321);							// 本場站編號
-define('STATION_IP', '192.168.0.201');					// 本場站IP
+define('STATION_IP', '192.168.10.201');					// 本場站IP
 define('STATION_URL', 'http://'.STATION_IP.'/');		// 本場站URL
 
 define('PHPLIBS_BASE', '/home/bigbang/libs/phplibs/');	// phplibs 根路徑
@@ -63,7 +63,7 @@ define('ALLPAY_FILE', PHPLIBS_BASE.'AllPay.Payment.Integration.php');	// 歐付�
 define('ALLPAY_INVOICE_FILE', PHPLIBS_BASE.'AllPay_Invoice.php');		// 歐付寶 (電子發票)
 
 define('MQ_CLASS_FILE', PHPLIBS_BASE.'phpMQTT.php');	// MQTT: class file name    
-define('MQ_HOST', 'localhost');							// MQTT: host   
+define('MQ_HOST', '192.168.10.202');					// MQTT: host   
 define('MQ_PORT', 1883);								// MQTT: port (default:1883) 
 define('MQ_TOPIC_SUBLEVEL', 'SUBLEVEL');				// MQTT TOPIC: 樓層在席顯示
 define('MQ_TOPIC_SUBTEXT', 'SUBTEXT');					// MQTT TOPIC: 出入口字幕機
@@ -79,6 +79,31 @@ define('MEMCACHE_PORT', 11211);							// memcache post no (default:11211)
 
 // Date.timezone
 //date_default_timezone_set("Asia/Taipei"); // <-- TODO: php.ini 無效 ?????????????????????????????????????????????
+
+/*
+|--------------------------------------------------------------------------
+| DELIMITER - 共用設定
+|--------------------------------------------------------------------------
+*/
+
+define('SYNC_DELIMITER_ST_NAME', 	' & ');	// (拆分) 場站名稱
+define('SYNC_DELIMITER_ST_NO', 		',');	// (拆分) 場站編號
+define('SYNC_DELIMITER_ST_INFO',	'|');	// (拆分) 其它
+
+/*
+|--------------------------------------------------------------------------
+| MEMCACHE KEY - 共用設定
+|--------------------------------------------------------------------------
+*/
+
+define('MCACHE_STATION_NO_STR', 'station_no_str');
+define('MCACHE_STATION_NAME_STR', 'station_name_str');
+define('MCACHE_STATION_IP_STR', 'station_ip_str');
+define('MCACHE_STATION_PORT_STR', 'station_port_str');
+define('MCACHE_STATION_888_STR', 'station_888_str');
+define('MCACHE_SYNC_888_TMP_LOG', 'sync_888_tmp_log');	// 暫存 888 進出
+
+define('MCACHE_STATION_SETTINGS', 'altob_station_settings');	// 場站設定匯整
 
 /*
 |--------------------------------------------------------------------------

@@ -83,7 +83,8 @@ class Carpark_model extends CI_Model
     // 月租會員查詢
 	public function member_query() 
 	{                    
-    	$results = $this->db->select('member_no, lpr, etag, member_name, mobile_no, start_date, end_date, contract_no, amt, member_id, tel_h, tel_o, addr, valid_time, station_no')
+    	$results = $this->db->select('member_no, lpr, etag, member_name, mobile_no, start_date, end_date, update_time, 
+					contract_no, amt, member_id, tel_h, tel_o, addr, valid_time, station_no')
         		->from('members')
                 ->order_by('station_no, lpr', 'asc')	
                 ->get()  
@@ -581,7 +582,7 @@ class Carpark_model extends CI_Model
 		$sql = "SELECT 
 					pks_groups.station_no, pks_groups.group_name as group_name, pks_groups.tot as tot, pks_groups.parked as parked, pks_groups.availables as availables, pks_groups.group_id as group_id, pks_groups.renum as renum 
 				FROM pks_groups 
-				ORDER BY pks_groups.group_id DESC";
+				ORDER BY pks_groups.group_name * 1 DESC";
 				
         return $this->db->query($sql)->result_array(); 
     } 

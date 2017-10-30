@@ -10,17 +10,6 @@ define('SYNC_PKS_GROUP_ID_MI', 'M888');		// 機車	888
 
 define('SYNC_API_URL', 'http://61.219.172.11:60123/admins_station.html/');
 
-define('SYNC_DELIMITER_ST_NAME', 	' & ');	// (拆分) 場站名稱
-define('SYNC_DELIMITER_ST_NO', 		',');	// (拆分) 場站編號
-define('SYNC_DELIMITER_ST_INFO',	'|');	// (拆分) 其它
-
-define('MCACHE_STATION_NO_STR', 'station_no_str');
-define('MCACHE_STATION_NAME_STR', 'station_name_str');
-define('MCACHE_STATION_IP_STR', 'station_ip_str');
-define('MCACHE_STATION_888_STR', 'station_888_str');
-
-define('MCACHE_SYNC_888_TMP_LOG', 'sync_888_tmp_log');	// 暫存 888 進出
-
 class Sync_data_model extends CI_Model 
 {             
 	var $vars = array();
@@ -48,6 +37,30 @@ class Sync_data_model extends CI_Model
 	// 在席系統同步 (START)
 	//
 	// ------------------------------------------------
+	
+	// 強制更新顯示
+	public function force_sync_888($station_no, $group_id, $value)
+	{
+		$where_group_arr = array('group_id' => $group_id, 'station_no' => $station_no);
+		
+		$rows = $this->db->select('renum, parked, tot, availables')
+        		->from('pks_groups')
+                ->where($where_group_arr)	     
+                ->limit(1)
+                ->get()  
+                ->row_array(); 
+		
+		// force upd
+		$new_renum = 0;
+		$new_ava = $value;
+		$new_parked = $rows['tot'] - $new_ava;
+		
+		trigger_error(__FUNCTION__ . "..{$rows['renum']}|{$rows['parked']}|{$rows['availables']}|{$rows['tot']}..to..{$new_renum}|{$new_parked}|{$new_ava}|{$rows['tot']}");
+		
+		$this->db->where($where_group_arr)->update('pks_groups', array('renum' => $new_renum, 'parked' => $new_parked, 'availables' => $new_ava));
+		
+		return $this->db->affected_rows();
+	}
     
 	// 同步 888
 	public function sync_888($parms)
@@ -572,10 +585,12 @@ class Sync_data_model extends CI_Model
 	// 重新載入場站設定
 	public function reload_station_setting()
 	{
+		$port_info = (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] != 60123) ? '/' . $_SERVER['SERVER_PORT'] : '';
+		$reload_url = SYNC_API_URL . 'station_setting_query' . $port_info;
 		try{
 			// 查現況
 			$ch = curl_init();
-			curl_setopt($ch, CURLOPT_URL, SYNC_API_URL . 'station_setting_query');
+			curl_setopt($ch, CURLOPT_URL, $reload_url);
 			curl_setopt($ch, CURLOPT_HEADER, FALSE);
 			curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
 			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
@@ -585,6 +600,8 @@ class Sync_data_model extends CI_Model
 			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(array()));
 			$return_result = curl_exec($ch);
 			curl_close($ch);
+			
+			trigger_error(__FUNCTION__ . "..curl {$reload_url}.." . print_r($return_result, true));
 
 		}catch (Exception $e){
 			trigger_error('error msg:'.$e->getMessage());
@@ -600,25 +617,44 @@ class Sync_data_model extends CI_Model
 		
 		$station_ip_str	= $station_setting_result['station_ip'];	// 場站目前對外IP
 		
+		if(empty($port_info))
+			$station_port_str = '80';
+		else
+			$station_port_str = substr($port_info, 1);				// 場站目前對外PORT
+		
 		$station_setting_arr = $station_setting_result['results'];
 		$station_no_arr = array();
 		$station_name_arr = array();
 		$station_888_arr = array();
+		
+		$settings = array();
 		foreach($station_setting_arr as $data)
 		{
-			array_push($station_no_arr, $data['station_no']);
+			$station_no = $data['station_no'];
+			
+			array_push($station_no_arr, $station_no);
 			array_push($station_name_arr, $data['short_name']);
 			array_push($station_888_arr, $data['station_888']);
+			
+			if(!isset($settings[$station_no]))
+			{
+				$settings[$station_no] = array();
+			}
+			$settings[$station_no]['station_888'] = empty($data['station_888']) ? 1 : $data['station_888'];
+			$settings[$station_no]['mqtt_ip'] = empty($data['mqtt_ip']) ? MQ_HOST : $data['mqtt_ip'];
+			$settings[$station_no]['mqtt_port'] = empty($data['mqtt_port']) ? MQ_PORT : $data['mqtt_port'];
 		}
 		$station_no_str = implode(SYNC_DELIMITER_ST_NO, $station_no_arr);		// 取值時會用到
 		$station_name_str = implode(SYNC_DELIMITER_ST_NAME, $station_name_arr);	// 純顯示
-		$station_888_str = implode(SYNC_DELIMITER_ST_INFO, $station_888_arr);	// 場站888設定
+		$station_888_str = implode(SYNC_DELIMITER_ST_INFO, $station_888_arr);	// 場站	888 設定
 		
 		// 設定到 mcache
 		$this->vars['mcache']->set(MCACHE_STATION_NO_STR, $station_no_str);
 		$this->vars['mcache']->set(MCACHE_STATION_NAME_STR, $station_name_str);
 		$this->vars['mcache']->set(MCACHE_STATION_IP_STR, $station_ip_str);
+		$this->vars['mcache']->set(MCACHE_STATION_PORT_STR, $station_port_str);
 		$this->vars['mcache']->set(MCACHE_STATION_888_STR, $station_888_str);
+		$this->vars['mcache']->set(MCACHE_STATION_SETTINGS, $settings);
 		return 'ok';
 	}
 	
@@ -628,9 +664,16 @@ class Sync_data_model extends CI_Model
 		$station_no_str = $this->vars['mcache']->get(MCACHE_STATION_NO_STR);
 		$station_name_str = $this->vars['mcache']->get(MCACHE_STATION_NAME_STR);
 		$station_ip_str = $this->vars['mcache']->get(MCACHE_STATION_IP_STR);
+		$station_port_str = $this->vars['mcache']->get(MCACHE_STATION_PORT_STR);
 		$station_888_str = $this->vars['mcache']->get(MCACHE_STATION_888_STR);
+		$settings = $this->vars['mcache']->get(MCACHE_STATION_SETTINGS);
 	
-		if($reload || empty($station_no_str) || empty($station_name_str) || empty($station_ip_str) || empty($station_888_str))
+		if(	$reload	|| 
+			empty($station_no_str) 		|| 	empty($station_name_str)	|| 
+			empty($station_ip_str) 		|| 	empty($station_port_str)			||	
+			empty($station_888_str)		||
+			empty($settings)
+		)
 		{
 			$result = $this->reload_station_setting();
 			
@@ -639,7 +682,9 @@ class Sync_data_model extends CI_Model
 				$station_no_str = $this->vars['mcache']->get(MCACHE_STATION_NO_STR);
 				$station_name_str = $this->vars['mcache']->get(MCACHE_STATION_NAME_STR);
 				$station_ip_str = $this->vars['mcache']->get(MCACHE_STATION_IP_STR);
+				$station_port_str = $this->vars['mcache']->get(MCACHE_STATION_PORT_STR);
 				$station_888_str = $this->vars['mcache']->get(MCACHE_STATION_888_STR);
+				$settings = $this->vars['mcache']->get(MCACHE_STATION_SETTINGS);
 			}
 			else
 			{
@@ -654,11 +699,19 @@ class Sync_data_model extends CI_Model
 			}
 		}
 		
+		// 第一個場站編號
+		$station_no_arr = explode(SYNC_DELIMITER_ST_NO, $station_no_str);
+		$first_station_no = $station_no_arr[0];
+		
 		$station_setting = array();
 		$station_setting['station_no'] = $station_no_str;
 		$station_setting['station_name'] = $station_name_str;
 		$station_setting['station_ip'] = $station_ip_str;
+		$station_setting['station_port'] = $station_port_str;
 		$station_setting['station_888'] = $station_888_str;
+		$station_setting['settings'] = $settings;
+		$station_setting['mqtt_ip']	= $settings[$first_station_no]['mqtt_ip'];		
+		$station_setting['mqtt_port'] = $settings[$first_station_no]['mqtt_port'];
 		return $station_setting;
 	}
 	

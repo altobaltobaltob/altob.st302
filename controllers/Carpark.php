@@ -11,7 +11,8 @@ define('APP_VERSION', '100');		// 版本號
 define('MAX_AGE', 604800);			// cache秒數, 此定義1個月     
 define('APP_NAME', 'carpark');		// 應用系統名稱
 define('PAGE_PATH', APP_BASE.'ci_application/views/'.APP_NAME.'/');						// path of views        
-define('SERVER_URL', 'http://'.(isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'localhost').'/');	// URL
+//define('SERVER_URL', 'http://'.(isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'localhost').'/');	// URL
+define('SERVER_URL', 'http://'.(isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'localhost') . ($_SERVER['SERVER_PORT'] != 60123 ? ':' . $_SERVER['SERVER_PORT'] : '') .'/');	// URL
 define('APP_URL', SERVER_URL.APP_NAME.'.html/');										// controller路徑 
 define('WEB_URL', SERVER_URL.APP_NAME.'/');												// 網頁路徑
 define('WEB_LIB', SERVER_URL.'libs/');													// 網頁lib
@@ -38,17 +39,29 @@ class Carpark extends CI_Controller
         $this->vars['mcache'] = new Memcache;
 		$this->vars['mcache']->connect(MEMCACHE_HOST, MEMCACHE_PORT) or die ('Could not connect memcache'); 
 		
-		// mqtt subscribe
+		/*
+		// mqtt subscribe 
 		$this->vars['mqtt'] = new phpMQTT(MQ_HOST, MQ_PORT, uniqid());  
 		//if(!$this->vars['mqtt']->connect()){ die ('Could not connect mqtt');  }				
 		$this->vars['mqtt']->connect();
+		*/
 		
 		$this->load->model('carpark_model'); 
         $this->carpark_model->init($this->vars);
 		
-		// 微調剩餘車位數
+		// 資料介接模組
 		$this->load->model('sync_data_model'); 
-		$this->sync_data_model->init($this->vars);
+		$this->sync_data_model->init($this->vars);	// for memcache
+		
+		// mqtt subscribe
+		$station_setting = $this->sync_data_model->station_setting_query();
+		$mqtt_ip = isset($station_setting['mqtt_ip']) ? $station_setting['mqtt_ip'] : MQ_HOST;
+		$mqtt_port = isset($station_setting['mqtt_port']) ? $station_setting['mqtt_port'] : MQ_PORT;
+		$this->vars['mqtt'] = new phpMQTT($mqtt_ip, $mqtt_port, uniqid());
+		$this->vars['mqtt']->connect();
+		
+		// init again
+		$this->sync_data_model->init($this->vars);	// for mqtt
 		
 		// 產生 excel 報表
 		$this->load->model('excel_model'); 
@@ -127,6 +140,55 @@ class Carpark extends CI_Controller
 	// 接收端 (START)
 	//
 	// ------------------------------------------------
+	
+	// [mqtt] 接收端 
+	public function mqtt_service()
+	{
+		$topic = $this->input->post('topic', true);
+		$msg = $this->input->post('msg', true);
+		$ck = $this->input->post('ck', true);
+		
+		if(md5($topic.'altob'.$msg) != $ck)
+		{
+			echo 'ck_error';
+			exit;
+		}
+		
+		trigger_error(__FUNCTION__ . "|{$topic}|{$msg}");
+		
+		if($topic == 'altob.888.mqtt')
+		{
+			// 第一個場站編號	先不管場站
+			$station_setting = $this->sync_data_model->station_setting_query();
+			$station_no_arr = explode(SYNC_DELIMITER_ST_NO, $station_setting['station_no']);
+			$first_station_no = $station_no_arr[0];
+			
+			$msg_arr = explode(',', $msg);
+			
+			if(sizeof($msg_arr) != 4)
+			{
+				trigger_error(__FUNCTION__ . "..error_size.." . print_r($msg_arr, true));
+				echo 'error_size';
+				exit;
+			}
+			
+			if($msg_arr[0] != 'N888' || $msg_arr[3] != 'altob')
+			{
+				trigger_error(__FUNCTION__ . "..unknown_msg.." . print_r($msg_arr, true));
+				echo 'unknown_msg';
+				exit;
+			}
+			
+			$msg_arr = explode(',', $msg);
+			$group_id = isset($msg_arr[1]) && $msg_arr[1] == 2 ? 'M888' : 'C888';
+			$value = isset($msg_arr[2]) ? $msg_arr[2] : 0;
+			$result = $this->sync_data_model->force_sync_888($first_station_no, $group_id, $value);
+			trigger_error(__FUNCTION__ . "..{$first_station_no}|{$group_id}|{$value}..result..{$result}..");
+		}
+		
+		echo 'ok';
+		exit;
+	}
 	
 	// [設定檔] 取得設定
 	public function station_setting_query()

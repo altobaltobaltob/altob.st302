@@ -60,10 +60,11 @@ class Pks extends CI_Controller
         }  
         set_error_handler(array($this, 'error_handler'), E_ALL);	// 資料庫異動需做log  
 
+		/*
 		// mqtt subscribe
 		$this->vars['mqtt'] = new phpMQTT(MQ_HOST, MQ_PORT, uniqid());  
-		
 		if(!$this->vars['mqtt']->connect()){ die ('Could not connect mqtt');  }		
+		*/
         
         // ----- 定義常數(路徑, cache秒數) -----       
         define('APP_VERSION', '100');		// 版本號
@@ -80,7 +81,25 @@ class Pks extends CI_Controller
         define('BOOTSTRAPS', WEB_LIB.'bootstrap_sb/');											// bootstrap lib  
         define('LOG_PATH', FILE_BASE.APP_NAME.'/logs/');		// log path name
         define('LOG_FILE', FILE_BASE.APP_NAME.'/logs/pks.');	// log file name
-        
+		
+		// 共用記憶體 
+        $this->vars['mcache'] = new Memcache;
+		$this->vars['mcache']->pconnect(MEMCACHE_HOST, MEMCACHE_PORT); // or die ('Could not connect memcache');   
+		
+		// mqtt subscribe
+		$this->load->model('sync_data_model'); 
+		$this->sync_data_model->init($this->vars);	// for memcache
+		
+		$station_setting = $this->sync_data_model->station_setting_query();
+		$mqtt_ip = isset($station_setting['mqtt_ip']) ? $station_setting['mqtt_ip'] : MQ_HOST;
+		$mqtt_port = isset($station_setting['mqtt_port']) ? $station_setting['mqtt_port'] : MQ_PORT;
+		$this->vars['mqtt'] = new phpMQTT($mqtt_ip, $mqtt_port, uniqid());
+		$this->vars['mqtt']->connect();
+		
+		// init sync model
+		$this->sync_data_model->init($this->vars);
+		
+		// init pks model
 		$this->load->model('pks_model'); 
         $this->pks_model->init($this->vars);
 	}
@@ -199,6 +218,13 @@ class Pks extends CI_Controller
     public function cameras()
 	{                             
     	$parms = $this->uri->uri_to_assoc(3);
+		
+		// 調整 pksno 為 pks 格式
+		if (strpos($parms['pksno'], 'B') !== false)
+			$parms['pksno'] = '9' . intval(preg_replace('/[^0-9\-]/', '', $parms['pksno']));	// 地下 B
+		else
+			$parms['pksno'] = intval(preg_replace('/[^0-9\-]/', '', $parms['pksno']));
+		
         trigger_error('在席參數傳入:'.print_r($parms, true));  
         
         // array_map('unlink', glob(PKS_PIC."pks-{$parms['pksno']}-*")); 
@@ -226,6 +252,7 @@ class Pks extends CI_Controller
         	} 
         }      
         */
+		
         $this->pks_model->pksio($parms);	// 車輛進出車格資料庫處理 
         exit;          
 	}   
