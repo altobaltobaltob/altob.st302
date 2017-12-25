@@ -99,9 +99,6 @@ class Carpayment extends CI_Controller
         echo "\n----- " . LOG_PATH.APP_NAME . '.' . date('Ymd').'.log.txt' . ' -----';   
         echo '</pre></body></html>';
 	}    
-	
-	
-	
                  
                                                 
     // http://localhost/carpayment.html/p2payed/ (post method)
@@ -118,56 +115,44 @@ class Carpayment extends CI_Controller
         
         $this->carpayment_model->p2payed($parms);
     }  
-	
-	// MITAC 付款
-	public function mitac2payed()
+     
+    /*
+    月租繳款完成          
+	http://203.75.167.89/carpayment.html/memberpayed/12345/ABC1234/120/12112/1/2016-01-31/1f3870be274f6c49b3e31a0c6728957f 
+	http://203.75.167.89/carpayment.html/memberpayed/會員號碼/車牌/金額/場站編號/月繳/本期到期日/md5 
+    md5(會員號碼.車牌.金額.場站編號.月繳.本期到期日)  
+    public function memberpayed()
 	{            
-    	$cario_no = $this->input->post('cario_no', true);	// 通訊序號
-		$lpr = $this->input->post('lpr', true);				// 車牌
-		$amt = $this->input->post('amt', true);						// 金額
-		$amt_discount =	$this->input->post('amt_discount', true);	// 折扣
-		$amt_real = $this->input->post('amt_real', true);			// 實收
-		$in_time = $this->input->post('in_time', true);		// 入場時間
-		$pay_time = $this->input->post('pay_time', true);	// 付款時間
-		$ck = $this->input->post('ck', true);				// 驗証碼
-		
-		// 通訊內容
-		$parms = array(
-			'cario_no' => $cario_no, 
-			'lpr' => $lpr, 
-			'amt' => $amt, 
-			'amt_discount' => $amt_discount, 
-			'amt_real' => $amt_real,
-			'in_time' => $in_time, 
-			'pay_time' => $pay_time);
-			
-		if($ck != md5($parms['cario_no']. 'a' . date('dmh') . 'l' . $parms['lpr'] . 't'. $parms['amt']. 'o'. $parms['amt_discount'] . 'b'. $parms['amt_real'] . __FUNCTION__))
-		{
-			trigger_error(__FUNCTION__ . '..ck_error..' . print_r($parms, true));
-			exit; // 中斷
-		}
-		
-		$parms['pay_type'] = 93; // MITAC 專用
-		trigger_error('MITAC 付款:' . print_r($parms, true));
-		
-		// 註記已離場
-		$this->carpayment_model->p2payed($parms, false, true);
+    	$parms['member_no'] =  $lines = $this->uri->segment(3);
+    	$parms['lpr'] =  $lines = $this->uri->segment(4);
+    	$parms['amt'] =  $lines = $this->uri->segment(5);
+    	$parms['station_no'] =  $lines = $this->uri->segment(6);
+    	$parms['period_type'] =  $lines = $this->uri->segment(7);
+    	$parms['expire_date'] =  $lines = $this->uri->segment(8);
+    	$md5 =  $this->uri->segment(9); 
+        if (md5($parms['member_no'].$parms['lpr'].$parms['amt'].$parms['station_no'].$parms['seqno'].$parms['period_type'].$parms['expire_date']) === $md5)
+        {
+        	$this->carpayment_model->memberpayed($parms); 
+        }
+    }     
+	*/	
+    
+	// 繳費機告知已付款 (new 2016/07/15)
+	// http://localhost/carpayment.html/ats2payed/車牌/金額/場站編號/序號/MD5 
+	// md5(車牌.金額.場站編號.序號)
+	public function ats2payed()
+	{            
+		$result = [];
+    	$parms['lpr'] =  $lines = $this->uri->segment(3);
+    	$parms['amt'] =  $lines = $this->uri->segment(4);
+    	$parms['station_no'] =  $lines = $this->uri->segment(5);
+    	$parms['order_no'] =  $lines = $this->uri->segment(6);
+    	$md5 =  $this->uri->segment(7); 
+        if (md5($parms['lpr'].$parms['amt'].$parms['station_no'].$parms['order_no']) === $md5)
+        {
+        	$this->carpayment_model->ats2payed($parms);	
+        }
     }
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
       
     // 行動支付, 手機告知已付款            
     // http://203.75.167.89/carpayment.html/m2payed/ABC1234/120/12112/12345/1f3870be274f6c49b3e31a0c6728957f 
@@ -180,8 +165,19 @@ class Carpayment extends CI_Controller
     	$parms['station_no'] =  $lines = $this->uri->segment(5);
     	$parms['seqno'] =  $lines = $this->uri->segment(6);
     	$md5 =  $this->uri->segment(7); 
-		trigger_error(__FUNCTION__ . '..' . print_r($parms, true));
         echo $this->carpayment_model->m2payed($parms); 
+        
+        /*
+        $seqno = !empty($_SESSION['seqno']) ? $_SESSION['seqno'] : 0;
+        unset($_SESSION['seqno']);
+        
+        if ($parms['seqno'] != 0 && $parms['seqno'] == $seqno && md5($parms['lpr'].$parms['amt'].$parms['station_no'].$parms['seqno']) === $md5)
+        {         
+        	echo $this->carpayment_model->m2payed($parms); 
+        }
+        else
+        	echo 'fail'; 
+        */
     }
     
                          

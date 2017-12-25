@@ -22,107 +22,11 @@ class Carpayment_model extends CI_Model
 	{                        
     	$this->vars = $vars;
     } 
-	
-	////////////////////////////////////////
-	//
-	// 付款後, 付款資訊建檔
-	//
-	////////////////////////////////////////
-	
-	// [付款完成] 付款後續流程
-	function payed_finished($cario_no, $lpr, $etag, $in_time)
-	{
-		$LOG_TAG = 'set_payed://';
-		$LOG_TAG_FATAL = 'set_payed_fatal://';
-		trigger_error(__FUNCTION__ . "|$cario_no 付款完成|$lpr, $etag, $in_time|");
-		
-		$trim_finished_cario_no_arr = array();	// 需處理的進場索引
-		
-		$in_time_value = strtotime($in_time);
-		$in_time_1 = date('Y-m-d H:i:s', $in_time_value + 1);	// +1 sec
-		$in_time_2 = date('Y-m-d H:i:s', $in_time_value - 1);	// -1 sec
-		$in_time_3 = date('Y-m-d H:i:s', $in_time_value + 2);	// +2 sec
-		$in_time_4 = date('Y-m-d H:i:s', $in_time_value - 2);	// -2 sec
-		
-		// 挑出已付款入場記錄, 入場時間附近 2 秒內, 但尚未結清之入場記錄
-		$sql = "SELECT cario_no, obj_id as lpr, etag, in_time
-				FROM cario
-				WHERE in_time in ('$in_time', '$in_time_1', '$in_time_2', '$in_time_3', '$in_time_4') 
-					AND cario_no != $cario_no 
-					AND finished = 0 
-					AND payed = 0 
-					AND err = 0
-				";
-		$in_time_retults = $this->db->query($sql)->result_array();
-		
-		if(!empty($in_time_retults) && count($in_time_retults) > 0)
-		{
-			$data = array();
-			foreach ($in_time_retults as $idx => $rows) 
-			{
-				$result_cario_no = $rows['cario_no'];
-				$result_lpr = $rows['lpr'];
-				$result_etag = $rows['etag'];
-				$result_in_time = $rows['in_time'];
-				
-				if(empty($result_lpr) || $result_lpr == 'NONE')
-				{
-					if(strlen($result_etag) > 20 && $result_etag == $etag)
-					{
-						trigger_error($LOG_TAG . "$cario_no, $lpr, $etag, $in_time|無車牌|ETAG吻合|$result_cario_no, $result_lpr, $result_etag, $result_in_time|待註銷|skip");
-						//array_push($trim_finished_cario_no_arr, $result_cario_no);
-					}
-				}
-				else
-				{
-					$levenshtein_value = levenshtein($result_lpr, $lpr);
-					if(	$levenshtein_value == 0 || $levenshtein_value == 1)
-					{
-						trigger_error($LOG_TAG . "$cario_no, $lpr, $etag, $in_time|車牌 差0-1碼|$result_cario_no, $result_lpr, $result_etag, $result_in_time|待註銷");
-						array_push($trim_finished_cario_no_arr, $result_cario_no);
-					}
-					else if($levenshtein_value == 2)
-					{
-						if(strlen($result_etag) > 20 && $result_etag == $etag)
-						{
-							trigger_error($LOG_TAG . "$cario_no, $lpr, $etag, $in_time|車牌 差2碼|ETAG吻合|$result_cario_no, $result_lpr, $result_etag, $result_in_time|待註銷|skip");
-							//array_push($trim_finished_cario_no_arr, $result_cario_no);
-						}
-					}
-					else
-					{
-						if(strlen($result_etag) > 20 && $result_etag == $etag)
-						{
-							trigger_error($LOG_TAG . "$cario_no, $lpr, $etag, $in_time|車牌不合|ETAG吻合|$result_cario_no, $result_lpr, $result_etag, $result_in_time|??");
-							trigger_error($LOG_TAG_FATAL . "$cario_no, $lpr, $etag, $in_time|車牌不合|ETAG吻合|$result_cario_no, $result_lpr, $result_etag, $result_in_time|??");
-						}
-					}
-				}
-			}
-		}
-		
-		// 執行註銷
-		if(!empty($trim_finished_cario_no_arr))
-		{
-			$this->db->where_in('cario_no', $trim_finished_cario_no_arr)->update('cario', array('err' => 2))->limit(5);
-			
-			if (!$this->db->affected_rows())
-			{
-				trigger_error($LOG_TAG . "註銷失敗|" . $this->db->last_query());
-				return 'fail';
-			}
-			
-			trigger_error($LOG_TAG . "註銷成功|" . $this->db->last_query());
-			trigger_error(__FUNCTION__ . '..trim_finished_cario_no_arr..' . print_r($trim_finished_cario_no_arr, true));
-		}
-		
-		return 'ok';
-	}
        
-    // 通知付款完成
-	public function p2payed($parms, $opay=false, $finished=false) 
+    // 博辰通知付款完成
+	public function p2payed($parms, $opay=false) 
 	{           
-		$result = $this->db->select("in_time, cario_no, station_no, etag")
+		$result = $this->db->select("in_time, cario_no, station_no")
         		->from('cario')	
                 ->where(array('obj_type' => 1, 'obj_id' => $parms['lpr'], 'finished' => 0, 'err' => 0))
                 ->order_by('cario_no', 'desc') 
@@ -130,66 +34,90 @@ class Carpayment_model extends CI_Model
                 ->get()
                 ->row_array();
 		
-		// 找不到記錄
-		if(!isset($result['cario_no']))
+		// 查不到車號才找備援碼
+		if(!isset($result['in_time']) && is_numeric($parms['lpr']) && strlen($parms['lpr']) == 6)
 		{
-			trigger_error(__FUNCTION__ . '..not found..' . print_r($parms, true));
-			return false;
-		}
-		
-		if($opay)
-		{
-			$pay_time = $this->now_str;
-			$out_before_time = date('Y-m-d H:i:s', strtotime(" + 15 minutes"));
-			$pay_type = 4;
-			
-			$data = array
-            		(
-                    	'out_before_time' => $out_before_time,
-                    	'pay_time' => $pay_time,
-                    	'pay_type' => 4, // 歐付寶行動支付
-                    	'payed' => 1		
-                    );
-			
-			// 是否註記完結
-			if($finished)
-				$data['finished'] = 1;
-			
-			$this->db->where(array('cario_no' => $result['cario_no']))->update('cario', $data); 
-			
-			if (!$this->db->affected_rows())
+			$result = $this->db->select("in_time, cario_no, station_no")
+				->from('cario')	
+				->where(array('obj_type' => 1, 'ticket_no' => $parms['lpr'], 'finished' => 0, 'err' => 0))
+				->order_by('cario_no', 'desc') 
+				->limit(1)
+				->get()
+				->row_array();
+				
+			// 找不到記錄
+			if(!isset($result['in_time']))
 			{
-				trigger_error("歐付寶行動支付失敗,{$parms['lpr']}金額:{$parms['amt']},序號:{$parms['seqno']}");
-				return 'fail';
+				trigger_error(__FUNCTION__ . '..not found..' . print_r($parms, true));
+				return false;
 			}
 			
-			trigger_error("歐付寶行動支付成功,{$parms['lpr']}金額:{$parms['amt']},序號:{$parms['seqno']}");
+			$in_time = new DateTime($result['in_time']);
+			$pay_time = new DateTime($parms['pay_time']);
+					
+			// 若間隔小於 15 分鐘, 拿現在時間來當付款時間
+			$parms['pay_time'] = (($pay_time->getTimestamp() - $in_time->getTimestamp()) / 60 < 15) ? $this->now_str : $parms['pay_time'];		
+			
+			if($opay)
+			{
+				// A. （備援碼）歐付寶
+				$parms2 = array('seqno' => $result['cario_no'], 'amt' => $parms['amt'], 'lpr' => $parms['lpr']);
+				return $this->m2payed($parms2);
+
+			}
+			else
+			{
+				// B. （備援碼）一般繳費機
+				$data = array
+					(
+						'out_before_time' =>  date('Y-m-d H:i:s', strtotime("{$parms['pay_time']} + 15 minutes")),
+						'pay_time' =>  $parms['pay_time'],
+						'pay_type' =>  $parms['pay_type'],
+						'payed' => 1
+					);
+							
+				$this->db->where(array('cario_no' => $result['cario_no']))->update('cario', $data); 
+					
+				if (!$this->db->affected_rows())
+				{
+					trigger_error("(備援碼) 付款失敗:{$parms['lpr']}|{$data['out_before_time']}"); 
+					return 'fail';	
+				}
+				
+				trigger_error("(備援碼) 付款後更新時間:{$parms['lpr']}|{$data['out_before_time']}"); 
+				return 'ok';
+			}
+		}
+		
+		// A. 歐付寶
+		if($opay)
+		{
+			$parms2 = array('seqno' => $result['cario_no'], 'amt' => $parms['amt'], 'lpr' => $parms['lpr']);
+			$result = $this->m2payed($parms2);
+			
+			if($result != 'ok')
+				return $result;
 		}
 		else
 		{
-			// 若間隔小於 15 分鐘, 拿現在時間來當付款時間
-			$pay_time = ((strtotime($parms['pay_time']) - strtotime($result['in_time'])) / 60 < 15) ? $this->now_str : $parms['pay_time'];
-		
-			// 限時離場時間
-			$out_before_time = date('Y-m-d H:i:s', strtotime("{$pay_time} + 15 minutes"));
-		
-			// 付款方式
-			$pay_type = $parms['pay_type'];
-		
 			// B. 一般繳費機
+			$in_time = new DateTime($result['in_time']);
+			$pay_time = new DateTime($parms['pay_time']);
+					
+			// 若間隔小於 15 分鐘, 拿現在時間來當付款時間
+			$parms['pay_time'] = (($pay_time->getTimestamp() - $in_time->getTimestamp()) / 60 < 15) ? $this->now_str : $parms['pay_time'];		
+			
 			$data = array
 					(
-						'out_before_time' =>  $out_before_time,
-						'pay_time' =>  $pay_time,
-						'pay_type' =>  $pay_type,
+						'out_before_time' =>  date('Y-m-d H:i:s', strtotime("{$parms['pay_time']} + 15 minutes")),
+						'pay_time' =>  $parms['pay_time'],
+						'pay_type' =>  $parms['pay_type'],
 						'payed' => 1
 					);
-
-			// 是否註記完結
-			if($finished)
-				$data['finished'] = 1;
-					
-			$this->db->where(array('cario_no' => $result['cario_no']))->update('cario', $data); 
+						
+			$this->db
+				->where(array('obj_type' => 1, 'obj_id' => $parms['lpr'], 'finished' => 0, 'err' => 0)) 
+				->update('cario', $data); 
 			
 			if (!$this->db->affected_rows())
 			{
@@ -197,27 +125,65 @@ class Carpayment_model extends CI_Model
 				return 'fail';
 			}
 			
-			trigger_error("付款後更新時間:{$parms['lpr']}|{$data['out_before_time']}|". print_r($data, true));
+			trigger_error("付款後更新時間:{$parms['lpr']}|{$data['out_before_time']}");
 		}
-		
-		// 付款後續流程
-		$this->payed_finished($result['cario_no'], $parms['lpr'], $result['etag'], $result['in_time']);
 		
 		// 傳送付款更新記錄
 		$sync_agent = new AltobSyncAgent();
 		$sync_agent->init($result['station_no'], $result['in_time']);
 		$sync_agent->cario_no = $result['cario_no'];		// 進出編號
-		$sync_result = $sync_agent->sync_st_pay($parms['lpr'], $pay_time, $pay_type, $out_before_time, $finished);
+		$sync_result = $sync_agent->sync_st_pay($parms['lpr'], $parms['pay_time'], $parms['pay_type'], 
+			date('Y-m-d H:i:s', strtotime("{$parms['pay_time']} + 15 minutes")));
 		trigger_error( "..sync_st_pay.." .  $sync_result);
+		
 		return 'ok';
     }                                 
+    
+	
+	// 繳費機告知已付款 (new 2016/07/15)
+	// http://localhost/carpayment.html/ats2payed/車牌/金額/場站編號/序號/MD5 
+	// md5(車牌.金額.場站編號.序號)
+	public function ats2payed($parms)
+	{            
+    	$order_no = $parms['order_no'];
+		$bill_result = $this->db->from('tx_bill_ats')
+				  ->where(array('order_no' => $order_no, 'status' => 111))
+				  ->limit(1)
+				  ->get()
+				  ->row_array();
+				
+		if(!empty($bill_result)){
+			$member_no = $bill_result['member_no'];
+			$station_no = $bill_result['station_no'];
+			$next_start_time = $bill_result['next_start_time'];
+			$next_end_time = $bill_result['next_end_time'];
+			
+			$data = array(
+				'end_date' => $bill_result['next_end_time'] // TODO: 有被任何一筆序號蓋資料的可能
+			);
+                    
+			$this->db
+				->where(array('member_no' => $member_no, 'station_no' => $station_no))
+				->update('members', $data); 
+			if ($this->db->affected_rows())
+			{
+				trigger_error("繳費機更新會員資料完成,{$parms['lpr']},金額:{$parms['amt']},序號:{$parms['order_no']}");
+				return 'ok';
+			}     
+			else
+			{
+				trigger_error("繳費機更新會員資料失敗,{$parms['lpr']},金額:{$parms['amt']},序號:{$parms['order_no']}");
+				return 'fail';
+			}
+		}		  
+    }
     
     
     // 行動支付, 手機告知已付款            
     // http://203.75.167.89/carpayment.html/m2payed/ABC1234/120/12112/12345/1f3870be274f6c49b3e31a0c6728957f 
     // http://203.75.167.89/carpayment.html/m2payed/車牌/金額/場站編號/序號/MD5 
     // md5(車牌.金額.場站編號.序號)
-	public function m2payed($parms, $finished=false) 
+	public function m2payed($parms) 
 	{           
         $data = array
             		(
@@ -226,13 +192,10 @@ class Carpayment_model extends CI_Model
                     	'pay_type' => 4, // 歐付寶行動支付
                     	'payed' => 1		
                     );
-			
-		// 是否註記完結
-		if($finished)
-			$data['finished'] = 1;
-		
-        $this->db->where(array('cario_no' => $parms['seqno']))->update('cario', $data); 
-		
+                    
+        $this->db
+            ->where(array('cario_no' => $parms['seqno'])) 
+        	->update('cario', $data); 
         if ($this->db->affected_rows())
         {
           	trigger_error("歐付寶行動支付成功,{$parms['lpr']}金額:{$parms['amt']},序號:{$parms['seqno']}");
@@ -244,17 +207,21 @@ class Carpayment_model extends CI_Model
             return 'fail';
         }
     }    
-
-
-
-	////////////////////////////////////////
-	//
-	// 付款前, 入場資訊查找
-	//
-	////////////////////////////////////////
-
-	
+         
     
+     
+    /*
+    月租繳款完成          
+	http://203.75.167.89/carpayment.html/memberpayed/12345/ABC1234/120/12112/1/2016-01-31/1f3870be274f6c49b3e31a0c6728957f 
+	http://203.75.167.89/carpayment.html/memberpayed/會員號碼/車牌/金額/場站編號/月繳/本期到期日/md5 
+    md5(會員號碼.車牌.金額.場站編號.月繳.本期到期日)  
+    
+	public function memberpayed($parms)
+	{           
+        // update members (???)
+    }  
+	*/
+	
 	// 模糊比對
 	function getLevenshteinSQLStatement($word, $target)
 	{
@@ -304,7 +271,6 @@ class Carpayment_model extends CI_Model
 		{
 			return null;
 		}
-		/*
 		// 備援數字使用
 		else if(is_numeric($word) && strlen($word) == 6)
 		{
@@ -319,7 +285,6 @@ class Carpayment_model extends CI_Model
 			$retults = $this->db->query($sql)->result_array();
 			return $retults;
 		}
-		*/
 		$fuzzy_statement = $this->getLevenshteinSQLStatement($word, 'obj_id');
 		//trigger_error("模糊比對 {$word} where: {$fuzzy_statement}");
 		
@@ -352,7 +317,7 @@ class Carpayment_model extends CI_Model
         $data['start_time'] = '00:00';
         $data['end_time'] = '00:00';
                 
-        $result = $this->db->select("in_time, date_format(pay_time, '%Y/%m/%d %T') as pay_time, in_pic_name, member_no, in_lane, in_out, station_no")
+        $result = $this->db->select("in_time, date_format(pay_time, '%Y/%m/%d %T') as pay_time, in_pic_name, member_no")
         		->from('cario')	
                 ->where(array('obj_type' => 1, 'ticket_no' => $ticket_no, 'finished' => 0, 'err' => 0))
                 ->order_by('cario_no', 'desc') 
@@ -365,78 +330,20 @@ class Carpayment_model extends CI_Model
 			// s5. 入場時間: 格式為"yyyy/MM/dd HH:mm:ss"，時間為24小時制，若無紀錄秒數秒數部分可填”00”
             $data['in_time'] = $result['in_time'];
 			// s6. 入場車牌圖片路徑: 貴公司的絕對路徑，我方使用網路芳鄰或FTP下載
-			$data['in_pic_name'] = $this->gen_in_pic_path($result);
+            $pic_name_arr = explode('-', $result['in_pic_name']);
+			$date_num = substr($pic_name_arr[7], 0, 8);                
+			$data['in_pic_name'] = "\\\\192.168.10.201\\pics\\{$date_num}\\{$result['in_pic_name']}";
 			// s7. 繳費時間: 無繳費時間時為"2000/01/01 00:00:00"，格式為"yyyy/MM/dd HH:mm:ss"，時間為24小時制，若無紀錄秒數秒數部分可填”00”
             $data['pay_time'] = !empty($result['pay_time']) ? $result['pay_time'] : '2000/01/01 00:00:00';
-			// s12. 停車位置區域代碼: 從 1 開始
-			$data['area_code'] = $this->gen_area_code($result);
         }   
         else
         {
             $data['in_time'] = '';
             $data['in_pic_name'] = '';
 			$data['pay_time'] = '2000/01/01 00:00:00';
-			$data['area_code'] = 1;
         }
         
         return $data;
-	}
-	
-	// 取得圖檔路徑
-	function gen_in_pic_path($cario)
-	{	
-		// 北車西上特例
-		$station_local_ip = ($cario['station_no'] == 12304)? '192.168.10.203' : STATION_LOCAL_IP;
-	
-		if(!empty($cario['in_pic_name']))
-		{
-			$pic_name_arr = explode('-', $cario['in_pic_name']);
-			$date_num = substr($pic_name_arr[7], 0, 8);
-			return "\\\\" . $station_local_ip . "\\pics\\{$date_num}\\{$cario['in_pic_name']}";
-		}
-		else if(file_exists(CAR_PIC . 'lpr-404.jpg'))
-		{
-			return "\\\\" . $station_local_ip . "\\pics\\lpr-404.jpg";	 // 預設圖片	
-		}
-		
-		return '';
-	}
-	
-	// 產生區域代碼 (判斷 in_out, in_lane, station_no)
-	function gen_area_code($cario)
-	{
-		// 1: 北車西上 (一般車)
-		// 2: 北車西上 (機車)
-		// 3: 北車西下 (一般車)
-		// 4: 北車西下 (計程車)
-		
-		// 北車西下
-		if($cario['station_no'] == 12303)
-		{
-			if($cario['in_lane'] == 0)
-			{
-				return 4;	// 4: 北車西下 (計程車)
-			}
-			else
-			{
-				return 3;	// 3: 北車西下 (一般車)
-			}
-		}
-		
-		// 北車西上
-		else if($cario['station_no'] == 12304)
-		{
-			if(substr($cario['in_out'], 0, 1) === 'C')
-			{
-				return 1;	// 1: 北車西上 (一般車)
-			}
-			else
-			{
-				return 2;	// 2: 北車西上 (機車)
-			}
-		}
-		
-		return 1;			// 預設值
 	}
 	
 	// 建立博辰查詢入場時間資料
@@ -461,20 +368,7 @@ class Carpayment_model extends CI_Model
         $rows = $this->db->query($sql)->row_array();
         if (!empty($rows['pksno']))
         {
-          	//$data['seat_no'] = ($rows['group_id'] == 'B1' ? '-1' : '0' . substr($rows['group_id'], -1)) . '_0' . substr($rows['pksno'], -3);
-			
-			$group_floor_type = preg_replace( '/[^A-Z]/', '', $rows['group_id']);
-			$group_floor_num = preg_replace( '/[^1-9]/', '', $rows['group_id']);
-			if($group_floor_type == 'B')
-			{
-				$data['seat_no'] = '-' . $group_floor_num . '_0' . substr($rows['pksno'], -3);
-			}
-			else
-			{
-				$group_floor_num = str_pad($group_floor_num, 2, '0', STR_PAD_LEFT);
-				$data['seat_no'] = $group_floor_num . '_0' . substr($rows['pksno'], -3);
-			}
-			
+          	$data['seat_no'] = ($rows['group_id'] == 'B1' ? '-1' : '0' . substr($rows['group_id'], -1)) . '_0' . substr($rows['pksno'], -3);
         } 
         else
         {
@@ -509,7 +403,7 @@ class Carpayment_model extends CI_Model
           	$data['end_time'] = '00:00';
         }
                 
-        $result = $this->db->select("in_time, date_format(pay_time, '%Y/%m/%d %T') as pay_time, in_pic_name, member_no, in_lane, in_out, station_no")
+        $result = $this->db->select("in_time, date_format(pay_time, '%Y/%m/%d %T') as pay_time, in_pic_name, member_no")
         		->from('cario')	
                 ->where(array('obj_type' => 1, 'obj_id' => $lpr, 'finished' => 0, 'err' => 0))
                 ->order_by('cario_no', 'desc') 
@@ -522,18 +416,17 @@ class Carpayment_model extends CI_Model
 			// s5. 入場時間: 格式為"yyyy/MM/dd HH:mm:ss"，時間為24小時制，若無紀錄秒數秒數部分可填”00”
             $data['in_time'] = $result['in_time'];
 			// s6. 入場車牌圖片路徑: 貴公司的絕對路徑，我方使用網路芳鄰或FTP下載
-			$data['in_pic_name'] = $this->gen_in_pic_path($result);
+            $pic_name_arr = explode('-', $result['in_pic_name']);
+			$date_num = substr($pic_name_arr[7], 0, 8);                
+			$data['in_pic_name'] = "\\\\192.168.10.201\\pics\\{$date_num}\\{$result['in_pic_name']}";
 			// s7. 繳費時間: 無繳費時間時為"2000/01/01 00:00:00"，格式為"yyyy/MM/dd HH:mm:ss"，時間為24小時制，若無紀錄秒數秒數部分可填”00”
             $data['pay_time'] = !empty($result['pay_time']) ? $result['pay_time'] : '2000/01/01 00:00:00';
-			// s12. 停車位置區域代碼: 從 1 開始
-			$data['area_code'] = $this->gen_area_code($result);
         }   
         else
         {
             $data['in_time'] = '';
             $data['in_pic_name'] = '';
 			$data['pay_time'] = '2000/01/01 00:00:00';
-			$data['area_code'] = 1;
         }
         
         return $data;
@@ -550,22 +443,22 @@ class Carpayment_model extends CI_Model
 			// s2 ~ s11 的資料會因模糊比對筆數增加或減少而增減
 			foreach ($fuzzy_result as $idx => $rows) 
 			{
-				$result_lpr = $rows['lpr'];
+				$lpr = $rows['lpr'];
 				$ticket_no = $rows['ticket_no'];
 				
-				if($result_lpr == 'NONE')
+				if($lpr == 'NONE')
 				{
 					$tmp_data = $this->gen_query_data_type4($ticket_no);	// 備緩搜尋
 				}
 				else
 				{
-					$tmp_data = $this->gen_query_data($result_lpr);			// 模糊搜尋
+					$tmp_data = $this->gen_query_data($lpr);				// 模糊搜尋
 				}
 				
 				if($tmp_data['in_time'] == '')
 				{
 					// 若查無入場時間, 直接乎略這筆
-					trigger_error("查無入場時間, 直接乎略這筆[{$result_lpr}]:".print_r($rows, true));
+					trigger_error("查無入場時間, 直接乎略這筆[{$lpr}]:".print_r($rows, true));
 				}
 				else
 				{
@@ -588,7 +481,6 @@ class Carpayment_model extends CI_Model
 			$data_0['in_time'] = '';
             $data_0['pay_time'] = '2000/01/01 00:00:00';
             $data_0['in_pic_name'] = '';
-			$data_0['area_code'] = 1;
 			
 			$data = array();
 			$data['results'][0] = $data_0;
@@ -616,20 +508,7 @@ class Carpayment_model extends CI_Model
         $rows = $this->db->query($sql)->row_array();
         if (!empty($rows['pksno']))
         {
-          	//$data['seat_no'] = ($rows['group_id'] == 'B1' ? '-1' : '0' . substr($rows['group_id'], -1)) . '_' . substr($rows['pksno'], -3);
-			
-			$group_floor_type = preg_replace( '/[^A-Z]/', '', $rows['group_id']);
-			$group_floor_num = preg_replace( '/[^1-9]/', '', $rows['group_id']);
-			if($group_floor_type == 'B')
-			{
-				$data['seat_no'] = '-' . $group_floor_num . '_0' . substr($rows['pksno'], -3);
-			}
-			else
-			{
-				$group_floor_num = str_pad($group_floor_num, 2, '0', STR_PAD_LEFT);
-				$data['seat_no'] = $group_floor_num . '_0' . substr($rows['pksno'], -3);
-			}
-			
+          	$data['seat_no'] = ($rows['group_id'] == 'B1' ? '-1' : '0' . substr($rows['group_id'], -1)) . '_' . substr($rows['pksno'], -3);
         } 
         else
         {
@@ -660,7 +539,7 @@ class Carpayment_model extends CI_Model
           	$data['end_time'] = '00:00';
         }
                 
-        $result = $this->db->select("in_time, date_format(pay_time, '%Y/%m/%d %T') as pay_time, in_pic_name, member_no, station_no")
+        $result = $this->db->select("in_time, date_format(pay_time, '%Y/%m/%d %T') as pay_time, in_pic_name, member_no")
         		->from('cario')	
                 ->where(array('obj_type' => 1, 'obj_id' => $lpr, 'finished' => 0, 'err' => 0))
                 ->order_by('cario_no', 'desc') 
@@ -673,7 +552,12 @@ class Carpayment_model extends CI_Model
         	trigger_error("aps查詢入場時間|{$lpr}|{$result['in_time']}|{$result['in_pic_name']}"); 
             $data['in_time'] = $result['in_time'];
             $data['pay_time'] = !empty($result['pay_time']) ? $result['pay_time'] : '2000/01/01 00:00:00';
-			$data['in_pic_name'] = $this->gen_in_pic_path($result);
+            $pic_name_arr = explode('-', $result['in_pic_name']);
+			$date_num = substr($pic_name_arr[7], 0, 8);                
+            //$data['in_pic_name'] = "\\\\192.168.10.201\\pics\\{$date_num}\\{$result['in_pic_name']}"; // 2016/07/25 update
+			//$data['in_pic_name'] = "D:/altob/home/data/parkings/cars/pics/{$date_num}/{$result['in_pic_name']}";	// 2016/07/25 update
+			$data['in_pic_name'] = "\\\\192.168.10.201\\pics\\{$date_num}\\{$result['in_pic_name']}";	// 2016/07/25 update
+            // $data['in_pic_name'] = "{$date_num}/{$result['in_pic_name']}";
             $data['records'] = 1; 
         }   
         else

@@ -105,7 +105,6 @@ class Qcar2_model extends CI_Model
 				);
 			}
 		}
-		/*
 		else
 		{
 			// 讀取入場資料
@@ -126,8 +125,7 @@ class Qcar2_model extends CI_Model
 					{
 						$pic_name = str_replace('.jpg', '', $rows['pks_pic_name']);
 						$arr = explode('-', $pic_name);
-						//$pks_pic_path = SERVER_URL.'carspic/'.substr($arr[7], 0, 8).'/'.$pic_name.'.jpg';
-						$pks_pic_path = SERVER_URL.'carpic/'.substr($arr[7], 0, 8).'/'.$pic_name.'.jpg';
+						$pks_pic_path = SERVER_URL.'carspic/'.substr($arr[7], 0, 8).'/'.$pic_name.'.jpg';
 					}
 					
 					$data['result'][$idx] = array
@@ -140,7 +138,6 @@ class Qcar2_model extends CI_Model
 				}
 			}
 		}
-		*/
 		return $data;
 	}
 	

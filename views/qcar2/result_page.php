@@ -46,7 +46,7 @@
 
 			<?php /* ----- 查詢結果 ----- */ ?>
             <div data-items="output_pks" class="row" style="display:none;">
-                <div class="col-lg-7 col-sm-7">
+                <div class="col-lg-6 col-sm-6">
                     <div class="panel panel-default">
                         <div class="panel-heading" style="font-size:28px;"><?php /* 資料顯示區灰色小表頭 */ ?>
                             查車結果
@@ -79,7 +79,7 @@
                     </div>
                     <!-- /.panel -->
                 </div>
-				<div class="col-lg-5 col-sm-5">
+				<div class="col-lg-6 col-sm-6">
 					<div class="panel panel-default">
                         <div class="panel-heading" style="font-size:28px;">
                             在席照片
@@ -91,7 +91,7 @@
 								<tbody>
 									<tr>
 										<td style="text-align:center;vertical-align: middle;">
-											<img id="show_img" style="max-height:150px" />
+											<img id="show_img" style="max-height:200px" />
                                         </td>
 									</tr>
 								</tbody>
@@ -105,15 +105,10 @@
 
 		<div data-items="B1" class="row" style="display:none;">
 			<div class="col-lg-12 col-sm-12">
-				<table class="table table-striped table-bordered table-hover"">
-					<tbody>
-						<tr>
-							<td style="text-align:center;vertical-align: middle;">
-								<canvas id="b1canvas"></canvas>
-							</td>
-						</tr>
-					</tbody>
-				</table>
+				<div class="panel panel-default">
+					<div class="panel-heading"><span>停車位置 : B1 樓層</span></div>
+					<div class="panel-body"><canvas id="b1canvas"></canvas></div>
+				</div>
 			</div>
         </div>
 
@@ -148,9 +143,6 @@
 	
 	<!-- altob ats map -->
 	<script src="<?=WEB_LIB?>js/altob-ats-map.js"></script> 
-	
-	<!-- altob settings -->
-	<script src="<?=WEB_LIB?>js/altob.settings.js"></script>
 
     <!-- Custom Theme JavaScript -->
     <script src="<?=BOOTSTRAPS?>dist/js/sb-admin-2.js"></script>
@@ -426,9 +418,9 @@ $(document).ready(function()
 				floorName: 'B1',
 				canvasId: 'b1canvas',
 				src: '<?=SERVER_URL?>i3/pics/b1_map.png',
-				initialImageRatio: AltobObject.settings.qcar2.result_page.B1.initialImageRatio,
-				shiftLeft: AltobObject.settings.qcar2.result_page.B1.shiftLeft,
-				shiftUp: AltobObject.settings.qcar2.result_page.B1.shiftUp
+				initialImageRatio: 0.9,
+				shiftLeft: 50,
+				shiftUp: 0
 			}
 		}
 	});

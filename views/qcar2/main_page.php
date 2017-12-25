@@ -59,7 +59,7 @@
 										&nbsp;&nbsp;
 										<span id='fuzzy_search_lpr_msg' style="font-size:28px;color:red;"></span>
 										&nbsp;&nbsp;
-										<!--button type="submit" class="btn btn-large btn-success pull-right" style="font-size:28px;">搜尋車牌</button-->
+										<button type="submit" class="btn btn-large btn-success pull-right" style="font-size:28px;">搜尋車牌</button>
 									</form>
 								</div>
 							</div>
@@ -158,7 +158,7 @@
 								<tbody>
 									<tr>
 										<td colspan="2" style="text-align:center;vertical-align: middle;">
-											<img id="show_img" style="max-width:300px" />
+											<img id="show_img" style="max-width:400px" />
                                         </td>
 									</tr>
 								</tbody>
@@ -393,36 +393,16 @@ $(document).ready(function()
 				}
 
 				$("#carin_query_tbody").html(tmp_str_array.join(''));
+
 				$("#carin_query_list").show();
-            
-				// 若只找到一台, 直接跳到結果頁
-				if(idx == 0)
-				{
-					check_lpr(0);
-				}
             }
         });
     });
-	
-	// Custom: altob-keyaction
-  	// ********************
-	$.extend($.keyboard.keyaction, {
-		accept : function(base) {
-			base.close(true); // same as base.accept();
-			
-			// 直接 submit
-			$( "#fuzzy_search_lpr" ).submit();
-			
-			return false;     // return false prevents further processing
-		}
-	});
 	
 	// Custom: altob-input
   	// ********************
   	$('#fuzzy_input').keyboard({
 
-		usePreview: false,
-	
 		css : {
 		  // input & preview styles
 		  input          : 'ui-widget-content ui-corner-all',
@@ -436,17 +416,6 @@ $(document).ready(function()
 		  buttonAction   : 'ui-state-active',
 		  // used when disabling the decimal button {dec} when a decimal exists in the input area
 		  buttonDisabled : 'ui-state-disabled'
-		},
-		
-		position : {
-		  // null (attach to input/textarea) or a jQuery object (attach elsewhere)
-		  of : null,
-		  my : 'center top',
-		  at : 'center top',
-		  // at2 is used when "usePreview" is false (centers keyboard at the bottom
-		  // of the input/textarea)
-		  at2: 'center bottom',
-		  collision: 'flipfit flipfit'
 		},
 
   		display: {
@@ -499,7 +468,5 @@ $(document).ready(function()
 		setTimeout(refresh, pageCheckReloadTimeMillis);
 	})();
 
-	// 自動鎖定輸入欄位
-	$( "#fuzzy_input" ).focus();
 });
 </script>

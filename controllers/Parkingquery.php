@@ -20,24 +20,7 @@ class Parkingquery extends CI_Controller
 			//error_reporting(E_ALL ^ E_NOTICE); 
 			error_reporting(E_ALL); 
         }  
-		set_error_handler(array($this, 'error_handler'), E_ALL);	// 資料庫異動需做log   
-		
-		ignore_user_abort();	// 接受client斷線, 繼續run 
-				
-		$method_name = $this->router->fetch_method();
-		if ($method_name == 'security_action')
-		{
-			ob_end_clean();
-			ignore_user_abort();
-			ob_start();
-			
-			echo 'ok';
-			
-			header('Connection: close');
-			header('Content-Length: ' . ob_get_length());
-			ob_end_flush();
-			flush();
-		}
+        set_error_handler(array($this, 'error_handler'), E_ALL);	// 資料庫異動需做log   
            
         /*
         // 共用記憶體 
@@ -113,17 +96,10 @@ class Parkingquery extends CI_Controller
         
     }    
     
-    // 查詢各樓層剩餘車位 
-	public function check_space_all() 
-	{       
-    	$seqno = $this->uri->segment(3);
-        $data = $this->parkingquery_model->check_space_all($seqno);
-        $data['result']['num'] = $seqno; 
-        $data['result_code'] = 'OK'; 
-        echo json_encode($data, JSON_UNESCAPED_UNICODE); 
-    }
+    
     	   
     // 查詢各樓層剩餘車位 
+    // http://203.75.167.89/parkingquery.html/check_space/12345
 	public function check_space() 
 	{       
     	$seqno = $this->uri->segment(3);
@@ -132,28 +108,10 @@ class Parkingquery extends CI_Controller
         $data['result_code'] = 'OK'; 
         echo json_encode($data, JSON_UNESCAPED_UNICODE); 
     }    
-	
-	// 查詢各樓層剩餘車位 (身障)
-	public function check_space2() 
-	{       
-    	$seqno = $this->uri->segment(3);
-        $data = $this->parkingquery_model->check_space($seqno, 3);
-        $data['result']['num'] = $seqno; 
-        $data['result_code'] = 'OK'; 
-        echo json_encode($data, JSON_UNESCAPED_UNICODE); 
-    }
     
-	// 查詢各樓層剩餘車位 (婦友)
-	public function check_space3() 
-	{       
-    	$seqno = $this->uri->segment(3);
-        $data = $this->parkingquery_model->check_space($seqno, 4);
-        $data['result']['num'] = $seqno; 
-        $data['result_code'] = 'OK'; 
-        echo json_encode($data, JSON_UNESCAPED_UNICODE); 
-    }
      
-    // 停車位置查詢
+    // 停車位置查詢(板橋好停車)
+    // http://203.75.167.89/parkingquery.html/check_location/ABC1234
 	public function check_location() 
 	{       
     	$lpr = $this->uri->segment(3);
@@ -161,32 +119,32 @@ class Parkingquery extends CI_Controller
         echo json_encode($data, JSON_UNESCAPED_UNICODE); 
     }      
     
+     
     // 空車位導引
+    // http://203.75.167.89/parkingquery.html/get_valid_seat
 	public function get_valid_seat() 
 	{                                          
     	$pksno = $this->uri->segment(3, 0);	// 從某一個車位開始, 若無則設0 
         $data = $this->parkingquery_model->get_valid_seat($pksno);
         echo json_encode($data, JSON_UNESCAPED_UNICODE); 
     }    
-	
-	// 空車位導引 (身障)
-	public function get_valid_seat2() 
-	{                                          
-    	$pksno = $this->uri->segment(3, 0);	// 從某一個車位開始, 若無則設0 
-        $data = $this->parkingquery_model->get_valid_seat($pksno, 3);
-        echo json_encode($data, JSON_UNESCAPED_UNICODE); 
-    }
     
-	// 空車位導引 (婦友)
-	public function get_valid_seat3() 
-	{                                          
-    	$pksno = $this->uri->segment(3, 0);	// 從某一個車位開始, 若無則設0 
-        $data = $this->parkingquery_model->get_valid_seat($pksno, 4);
+    
+    // 緊急求救
+    // http://203.75.167.89/parkingquery.html/send_sos/B2/111/123
+	public function send_sos() 
+	{                 
+    	$floor = $this->uri->segment(3);
+    	$x = $this->uri->segment(4);
+    	$y = $this->uri->segment(5);
+        get_headers("http://localhost/sos/set_sos.php?floor={$floor}&x={$x}&y={$y}");
+        $data = $this->parkingquery_model->send_sos($floor, $x, $y);
         echo json_encode($data, JSON_UNESCAPED_UNICODE); 
-    }
+    }       
+    
     
     // 防盜鎖車
-    // http://xxxxxxxx/parkingquery.html/security_action/ABC1234/pswd/2
+    // http://203.75.167.89/parkingquery.html/security_action/ABC1234/pswd/2
 	public function security_action() 
 	{                 
     	$lpr = $this->uri->segment(3);
@@ -196,87 +154,10 @@ class Parkingquery extends CI_Controller
         echo json_encode($data, JSON_UNESCAPED_UNICODE); 
     }
 	
-	// 查詢樓層總覽
-	public function q_local_pks() 
-	{       
-		$seqno = $this->uri->segment(3);
-		
-		if(empty($seqno))
-			$seqno = 'B1';
-		
-        $data = $this->parkingquery_model->q_local_pks($seqno);
-        $data['result']['num'] = $seqno; 
-		$data['result_code'] = 'OK'; 
-        echo json_encode($data, JSON_UNESCAPED_UNICODE); 
-    }    
-	
-	// [警急求救] 警急求救地圖
+	// 警急求救地圖
 	public function floor_map()
 	{
-		$data = $this->parkingquery_model->check_space(0);
-		
-		if(isset($data['result']['floor']))
-			$page_data['floor_info'] = json_encode($data['result']['floor'], JSON_UNESCAPED_UNICODE);
-		
-		$this->show_page("floor_map", $page_data);
+		$this->show_page("floor_map");
 	}
 	
-	// [警急求救] 警急求救地圖, 讀取緊急求救檔
-	public function floor_map_read_sos()
-	{
-		if($this->my_ip() != '192.168.10.202')	// 限制車辨主機
-		{
-			trigger_error(__FUNCTION__ . '..unknown host..' . $this->my_ip());
-			exit;
-		}
-		
-		if (file_exists(SOS_MSG))
-		{
-			$str = file_get_contents(SOS_MSG);
-			unlink(SOS_MSG);
-			echo $str;
-		}
-		else
-		{
-			echo 'NONE';
-		}
-	}
-    
-    // [警急求救] 緊急求救 API
-    // http://XXXXXXXXXXXXXXXX/parkingquery.html/send_sos/B2/111/123
-	public function send_sos() 
-	{                 
-    	$floor = $this->uri->segment(3);
-    	$x = $this->uri->segment(4);
-    	$y = $this->uri->segment(5);
-		
-        file_put_contents(SOS_MSG, "{$floor},{$x},{$y}");  
-		
-        $data = $this->parkingquery_model->send_sos($floor, $x, $y);
-        echo json_encode($data, JSON_UNESCAPED_UNICODE); 
-    }
-	
-	// [第三方] 展示頁
-	public function any_map()
-	{
-		$this->show_page("any_map");
-	}
-    
-	// 取得 IP
-	function my_ip()
-	{
-		if (getenv('HTTP_X_FORWARDED_FOR')) 
-		{
-			$ip = getenv('HTTP_X_FORWARDED_FOR');
-		}
-		elseif (getenv('HTTP_X_REAL_IP')) 
-		{
-			$ip = getenv('HTTP_X_REAL_IP');
-		}
-		else {
-			$ip = $_SERVER['REMOTE_ADDR'];
-		}
-
-		return $ip;
-	}
 }
