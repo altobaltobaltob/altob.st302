@@ -1,6 +1,6 @@
 <?php
 /*
-file: qcar2.php		查車系統2
+file: qcar3.php		查車系統3
 */
 if (!defined('BASEPATH')) exit('No direct script access allowed');
 
@@ -8,7 +8,7 @@ if (!defined('BASEPATH')) exit('No direct script access allowed');
         define('APP_VERSION', '100');		// 版本號
                                         
         define('MAX_AGE', 604800);			// cache秒數, 此定義1個月     
-        define('APP_NAME', 'qcar2');		// 應用系統名稱   
+        define('APP_NAME', 'qcar3');		// 應用系統名稱   
           
         define('PAGE_PATH', APP_BASE.'ci_application/views/'.APP_NAME.'/');						// path of views
 
@@ -19,7 +19,7 @@ if (!defined('BASEPATH')) exit('No direct script access allowed');
         define('BOOTSTRAPS', WEB_LIB.'bootstrap_sb/');											// bootstrap lib
         define('LOG_PATH', FILE_BASE.APP_NAME.'/logs/');	// log path
 
-class Qcar2 extends CI_Controller
+class Qcar3 extends CI_Controller
 {                 
     var $vars = array();	// 共用變數   
     
@@ -35,7 +35,7 @@ class Qcar2 extends CI_Controller
         }  
         set_error_handler(array($this, 'error_handler'), E_ALL);	// 資料庫異動需做log   
         
-		$this->load->model('qcar2_model'); 
+		$this->load->model('qcar3_model'); 
 	}
     
     
@@ -93,7 +93,7 @@ class Qcar2 extends CI_Controller
     public function show_result()
 	{
     	$lpr = $this->uri->segment(3);	// 車牌號碼
-        $data = $this->qcar2_model->q_pks($lpr);
+        $data = $this->qcar3_model->q_pks($lpr);
 		$data['lpr'] = strtoupper($lpr);
 		$this->show_page('result_page', $data);		// 1280x1080
 	}
@@ -102,7 +102,7 @@ class Qcar2 extends CI_Controller
     public function show_result2()
 	{
     	$lpr = $this->uri->segment(3);	// 車牌號碼
-        $data = $this->qcar2_model->q_pks($lpr);
+        $data = $this->qcar3_model->q_pks($lpr);
 		$data['lpr'] = strtoupper($lpr);
 		$this->show_page('result_page2', $data);	// 2560x1440
 	}
@@ -111,7 +111,7 @@ class Qcar2 extends CI_Controller
     public function q_pks()
 	{
     	$lpr = $this->input->post('lpr', true);
-        $data = $this->qcar2_model->q_pks($lpr);
+        $data = $this->qcar3_model->q_pks($lpr);
         echo json_encode($data, JSON_UNESCAPED_UNICODE);
 	}
 
@@ -119,7 +119,7 @@ class Qcar2 extends CI_Controller
 	public function q_fuzzy_pks()
 	{
 		$input = $this->input->post('fuzzy_input', true);
-		$data = $this->qcar2_model->q_fuzzy_pks($input);
+		$data = $this->qcar3_model->q_fuzzy_pks($input);
 		echo json_encode($data, JSON_UNESCAPED_UNICODE);
 	}  
     

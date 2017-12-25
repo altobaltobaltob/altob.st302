@@ -48,7 +48,7 @@
 			<?php /* ----- 查詢結果 ----- */ ?>
             <!-- div data-items="rent_sync" class="row" style="display:none;"-->
             <div data-items="output_pks" class="row" style="display:none; height:100%">
-                <div class="col-lg-3 col-sm-6">
+                <div class="col-lg-3 col-sm-3">
                     <div class="panel panel-default">
                         <div class="panel-heading" style="font-size:28px;"><?php /* 資料顯示區灰色小表頭 */ ?>
                             查車結果
@@ -83,7 +83,7 @@
 													<tbody>
 														<tr>
 															<td style="text-align:center;vertical-align: middle;">
-																<img id="show_img" style="max-height:200px" />
+																<img id="show_img" style="max-width:150px" />
 															</td>
 														</tr>
 													</tbody>
@@ -186,6 +186,9 @@
 	
 	<!-- altob ats map -->
 	<script src="<?=WEB_LIB?>js/altob-ats-map.js"></script> 
+	
+	<!-- altob settings -->
+	<script src="<?=WEB_LIB?>js/altob.settings.js"></script>
 
     <!-- Custom Theme JavaScript -->
     <script src="<?=BOOTSTRAPS?>dist/js/sb-admin-2.js"></script>
@@ -255,7 +258,7 @@ if(PKS_RESULT.pksno == '')
 else
 {
 	$("#show_lpr").text(PKS_RESULT.lpr);
-	$("#show_floors").html(PKS_RESULT.group_name+" ( 車格: " + PKS_RESULT.pksno.substr(-3, 3) +" )");
+	$("#show_floors").html(PKS_RESULT.group_name+"<br/> ( 車格: " + PKS_RESULT.pksno.substr(-3, 3) +" )");
 	$("#show_update_time").text(PKS_RESULT.in_time);
     $("#show_img").attr("src", "<?=SERVER_URL?>pkspic/" + PKS_RESULT.pic_name);
 
@@ -458,9 +461,9 @@ $(document).ready(function()
 				floorName: 'B1',
 				canvasId: 'b1canvas',
 				src: '<?=SERVER_URL?>i3/pics/b1_map.png',
-				initialImageRatio: 0.8,
-				shiftLeft: 250,
-				shiftUp: 0
+				initialImageRatio: AltobObject.settings.qcar2.result_page2.B1.initialImageRatio,
+				shiftLeft: AltobObject.settings.qcar2.result_page2.B1.shiftLeft,
+				shiftUp: AltobObject.settings.qcar2.result_page2.B1.shiftUp
 			}
 		}
 	});

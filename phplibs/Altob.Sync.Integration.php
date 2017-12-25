@@ -12,6 +12,7 @@ class AltobSyncAgent
 	const SYNC_CARS_URL = 'http://61.219.172.12/parkings/cars.html/';			// 進出記錄
 	const SYNC_ST_URL = 'http://61.219.172.11:60123/admins_station.html/';		// 場站記錄
 	const API_URL = 'http://parks.altob.com.tw:60123/parkingquery.html/';		// 場站 API
+	const ALLPA_URL = 'http://61.219.172.11:60123/allpa_service.html/';			// 歐pa卡
 	
 	public $io = '';
 	public $etag = '';
@@ -127,7 +128,7 @@ class AltobSyncAgent
 	}
 
 	// 傳送付費更新記錄
-	public function sync_st_pay($lpr, $pay_time, $pay_type=0, $out_before_time='')
+	public function sync_st_pay($lpr, $pay_time, $pay_type=0, $out_before_time='', $finished=false)
 	{
 		$error_parms_msg = $this->check_init_parms();
 		if(!empty($error_parms_msg)) { return $error_parms_msg; }
@@ -147,11 +148,63 @@ class AltobSyncAgent
 		$this->post_parms['pay_time'] = $pay_time;
 		$this->post_parms['pay_type'] = $pay_type;
 		$this->post_parms['out_before_time'] = empty($out_before_time) ? date('Y-m-d H:i:s', strtotime("{$pay_time} + 15 minutes")) : $out_before_time;
-
+		
+		// 是否註記完結
+		if($finished)
+			$this->post_parms['finished'] = 1;
+		
 		// 初始化網路服務物件。
 		$oService = new AltobSyncService();
 		$oService->ServiceURL = AltobSyncAgent::SYNC_CARS_URL;
 		$oService->ServiceCMD = 'st_pay';
+
+		// 傳遞參數至遠端。
+		return $oService->ServerPost($this->post_parms);
+	}
+	
+	// 傳送進出更新記錄
+	public function sync_st_io_meta($meta)
+	{
+		$error_parms_msg = $this->check_init_parms();
+		if(!empty($error_parms_msg)) { return $error_parms_msg; }
+		
+		if(empty($meta))
+			return 'meta not found';
+
+		if(empty($this->cario_no))
+			return 'cario_no not found';
+		
+		$this->post_parms['meta'] = $meta;	// 需設定
+		$this->post_parms['cario_no'] = $this->cario_no;	// 需設定
+		
+		// 初始化網路服務物件。
+		$oService = new AltobSyncService();
+		$oService->ServiceURL = AltobSyncAgent::SYNC_CARS_URL;
+		$oService->ServiceCMD = 'st_io_meta';
+
+		// 傳遞參數至遠端。
+		return $oService->ServerPost($this->post_parms);
+	}
+	
+	// ===============================================
+	// SOS
+	// ===============================================
+	
+	// 傳送 SOS
+	public function sync_st_sos($machine_no)
+	{
+		$error_parms_msg = $this->check_init_parms();
+		if(!empty($error_parms_msg)) { return $error_parms_msg; }
+
+		if(empty($machine_no))
+			return 'machine_no not found';
+
+		$this->post_parms['machine_no'] = $machine_no;
+
+		// 初始化網路服務物件。
+		$oService = new AltobSyncService();
+		$oService->ServiceURL = AltobSyncAgent::SYNC_CARS_URL;
+		$oService->ServiceCMD = 'st_sos';
 
 		// 傳遞參數至遠端。
 		return $oService->ServerPost($this->post_parms);
@@ -188,7 +241,7 @@ class AltobSyncAgent
 		// 初始化網路服務物件。
 		$oService = new AltobSyncService();
 		$oService->ServiceURL = AltobSyncAgent::API_URL;
-		$oService->ServiceCMD = "sync_security_action/{$lpr}/{$pswd}/{$action}/{$ck}/{$station_no}";
+		$oService->ServiceCMD = __FUNCTION__ . "/{$lpr}/{$pswd}/{$action}/{$ck}/{$station_no}";
 
 		// 傳遞參數至遠端。
 		return $oService->ServerPost($this->post_parms);
@@ -206,7 +259,7 @@ class AltobSyncAgent
 		// 初始化網路服務物件。
 		$oService = new AltobSyncService();
 		$oService->ServiceURL = AltobSyncAgent::API_URL;
-		$oService->ServiceCMD = "sync_change_pwd/{$lpr}/{$pswd}/{$new_pwd}/{$ck}/{$station_no}";
+		$oService->ServiceCMD = __FUNCTION__ . "/{$lpr}/{$pswd}/{$new_pwd}/{$ck}/{$station_no}";
 
 		// 傳遞參數至遠端。
 		return $oService->ServerPost($this->post_parms);
@@ -227,7 +280,55 @@ class AltobSyncAgent
 		// 初始化網路服務物件。
 		$oService = new AltobSyncService();
 		$oService->ServiceURL = AltobSyncAgent::SYNC_PKS_URL;
-		$oService->ServiceCMD = 'upd_pks_groups';
+		$oService->ServiceCMD = __FUNCTION__;
+
+		// 傳遞參數至遠端。
+		return $oService->ServerPost($this->post_parms);
+	}
+	
+	// ===============================================
+	// 歐Pa卡
+	// ===============================================
+	
+	// 歐Pa卡 - 開門
+	public function allpa_go($lpr)
+	{
+		$error_parms_msg = $this->check_init_parms();
+			if(!empty($error_parms_msg)) { return $error_parms_msg; }
+		
+		if(empty($this->in_time))
+			return 'in_time not found';			// 需設定
+		
+		if(empty($lpr))
+			return 'lpr not found';				// 需設定
+		
+		$this->post_parms['in_time'] = $this->in_time;
+		$this->post_parms['lpr'] = $lpr;
+		$this->post_parms['ck'] = md5(
+				$this->post_parms['lpr']. 'a' . date('dmh') . 'lt' . 
+				$this->post_parms['in_time'] . 'o' .							// timestamp
+				$this->post_parms['station_no'] . 'b' . __FUNCTION__ . 
+				$this->post_parms['io_time']									// timestamp
+			);
+		
+		// 初始化網路服務物件。
+		$oService = new AltobSyncService();
+		$oService->ServiceURL = AltobSyncAgent::ALLPA_URL;
+		$oService->ServiceCMD = __FUNCTION__;
+
+		// 傳遞參數至遠端。
+		return $oService->ServerPost($this->post_parms);
+	}
+	
+	// 歐Pa卡 - 取得場站會員
+	public function query_allpa_users()
+	{
+		$this->post_parms['ck'] = md5('a' . date('dmh') . 'lt' . __FUNCTION__ . 'ob');
+		
+		// 初始化網路服務物件。
+		$oService = new AltobSyncService();
+		$oService->ServiceURL = AltobSyncAgent::ALLPA_URL;
+		$oService->ServiceCMD = __FUNCTION__;
 
 		// 傳遞參數至遠端。
 		return $oService->ServerPost($this->post_parms);

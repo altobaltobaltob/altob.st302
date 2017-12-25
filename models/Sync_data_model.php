@@ -30,7 +30,97 @@ class Sync_data_model extends CI_Model
 	{
 		$this->vars['mqtt']->publish($topic, $msg, 0);
     	trigger_error("mqtt:{$topic}|{$msg}");
+		usleep(100000); // delay 0.1 sec (避免漏訊號)
     }
+	
+	// ------------------------------------------------
+	//
+	// 博辰 (START)
+	//
+	// ------------------------------------------------
+	
+	// 博辰 888 同步
+	public function sync_parktron_888($parktron_result)
+	{
+		if(empty($parktron_result))
+			return 'empty';
+		
+		// 解析資料
+		$pks_groups_arr = array();
+		
+		foreach($parktron_result as $content_result_list) 
+		{
+			foreach ($content_result_list as $item_result_list)
+			{
+				$area_id = 0;
+				$space_count = 0;
+				$parking_count = 0;
+				$blanking_count = 0;
+					
+				foreach ($item_result_list as $key => $value)
+				{
+					switch($key)
+					{
+						case 'areaId': $area_id = $value; break;
+						case 'spaceCount': $space_count = $value; break;
+						case 'parkingCount': $parking_count = $value; break;
+						case 'blankingCount': $blanking_count = $value; break;
+						default: trigger_error(__FUNCTION__ . "..unknown..{$key}|{$value}..");
+					}
+				}
+					
+				if($area_id > 0)
+				{
+					//trigger_error(__FUNCTION__ . "..$area_id, $space_count, $parking_count, $blanking_count..");
+					$pks_groups_arr["P{$area_id}"] = array('tot' => $space_count, 'parked' => $parking_count, 'availables' => $blanking_count);
+				}
+			}
+		}
+		
+		if(empty($pks_groups_arr))
+		{
+			trigger_error(__FUNCTION__ . "..empty pks_groups_arr..");
+			return 'empty';	
+		}
+		
+		// 取得場站編號
+		$station_setting = $this->station_setting_query();
+		$station_no_arr = explode(SYNC_DELIMITER_ST_NO, $station_setting['station_no']);
+		$station_no = $station_no_arr[0];
+		
+		trigger_error(__FUNCTION__ . "..$station_no.." . print_r($pks_groups_arr, true));
+		
+		// 更新博辰資料
+		$this->db->trans_start();
+		foreach($pks_groups_arr as $key => $data)
+		{
+			$where_group_arr = array('group_id' => $key, 'station_no' => $station_no);
+			$rows = $this->db->select('group_id')->from('pks_groups')
+                ->where($where_group_arr)
+                ->limit(1)
+                ->get()  
+                ->row_array(); 
+			
+			if(!isset($rows['group_id']))
+			{
+				// 不存在就新增
+				$data['station_no'] = $station_no;
+				$data['group_id'] = $key;
+				$data['floors'] = $key;
+				$data['group_name'] = '博辰 ' . $key;
+				$this->db->insert('pks_groups', $data);
+				trigger_error(__FUNCTION__ . '..insert pks_groups..'. print_r($data, true));
+			}
+			else
+			{
+				$data['renum'] = 0;
+				$this->db->where($where_group_arr)->update('pks_groups', $data);	
+			}
+		}
+		$this->db->trans_complete();
+
+		return 'ok';
+	}
 	
 	// ------------------------------------------------
 	//
@@ -259,11 +349,11 @@ class Sync_data_model extends CI_Model
 		// 送出即時訊號
 		if($group_id == SYNC_PKS_GROUP_ID_CI)
 		{
-			$this->mq_send(MQ_TOPIC_ALTOB, MQ_ALTOB_888 . ",1,{$availables}" . MQ_ALTOB_888_END_TAG); // 送出 888 (汽車)
+			//$this->mq_send(MQ_TOPIC_ALTOB, MQ_ALTOB_888 . ",1,{$availables}" . MQ_ALTOB_888_END_TAG); // 送出 888 (汽車)
 		}
 		else if($group_id == SYNC_PKS_GROUP_ID_MI)
 		{
-			$this->mq_send(MQ_TOPIC_ALTOB, MQ_ALTOB_888 . ",2,{$availables}" . MQ_ALTOB_888_END_TAG); // 送出 888 (機車)
+			//$this->mq_send(MQ_TOPIC_ALTOB, MQ_ALTOB_888 . ",2,{$availables}" . MQ_ALTOB_888_END_TAG); // 送出 888 (機車)
 		}
 		else
 		{
@@ -286,14 +376,44 @@ class Sync_data_model extends CI_Model
 	//
 	// ------------------------------------------------
 	
+	// 同步歐pa卡 （功能: 歐pa卡同步）
+	public function sync_allpa_user($info_arr=array('station_no_arr' => STATION_NO))
+	{
+		require_once(ALTOB_SYNC_FILE);
+		$sync_agent = new AltobSyncAgent();
+		$data = $sync_agent->query_allpa_users();
+		$data_allpa_user_arr = json_decode($data, true);
+		
+		if (sizeof($data_allpa_user_arr) <= 0)
+		{
+			trigger_error(SYNC_DATA_LOG_TITLE . '.. allpa_user empty ..');	// 忽略完全沒會員的情況
+			return 'empty';
+		}
+		
+		$this->db->trans_start();
+		// 清空
+		$this->db->empty_table('allpa_user');
+		// 建立 members
+		$this->db->insert_batch('allpa_user', $data_allpa_user_arr);
+		
+		$this->db->trans_complete();
+		if ($this->db->trans_status() === FALSE)
+		{
+			trigger_error(SYNC_DATA_LOG_TITLE . '.. sync allpa_user fail ..'. '| last_query: ' . $this->db->last_query());
+			return 'fail';
+		}
+		
+		trigger_error(SYNC_DATA_LOG_TITLE . '.. sync allpa_user completed ..');
+		return 'ok';
+	}
+	
 	// 同步場站會員 （功能: 會員同步）
 	public function sync_members($info_arr=array('station_no_arr' => STATION_NO))
 	{
-		$data_member_arr = array();
-		$data_car_arr = array();
+		// 查現況
+		$parms['station_no_arr'] = $info_arr['station_no_arr'];
 		
 		try{
-			// 查現況
 			$ch = curl_init();
 			curl_setopt($ch, CURLOPT_URL, SYNC_API_URL . 'member_query_all_in_one');
 			curl_setopt($ch, CURLOPT_HEADER, FALSE);
@@ -302,8 +422,8 @@ class Sync_data_model extends CI_Model
 			curl_setopt($ch, CURLOPT_POST, TRUE);
 			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT ,10);
 			curl_setopt($ch, CURLOPT_TIMEOUT, 10); //timeout in seconds
-			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($info_arr));
-			$data = curl_exec($ch);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($parms));
+			$result = curl_exec($ch);
 			curl_close($ch);
 
 		}catch (Exception $e){
@@ -311,31 +431,104 @@ class Sync_data_model extends CI_Model
 			trigger_error(SYNC_DATA_LOG_TITLE . $e->getMessage());
 		}
 		
-		$data_member_arr = json_decode($data, true);
+		// 取得資料
+		$result_arr = json_decode($result, true);
+		$data_member_arr = array();
+		$data_car_arr = array();
 		
-		if (sizeof($data_member_arr) <= 0)
+		if (sizeof($result_arr) <= 0)
 		{
 			trigger_error(SYNC_DATA_LOG_TITLE . '.. empty ..');	// 忽略完全沒會員的情況
 			return 'empty';
 		}
-		else
+		
+		/*
+		// 每一目標場站, 都建立一份會員清單 20171211 upd
+		if(isset($info_arr['current_station_no_arr']))
 		{
-			foreach($data_member_arr as $data)
+			$station_no_arr = explode(SYNC_DELIMITER_ST_NO, $info_arr['current_station_no_arr']);	
+			
+			foreach($station_no_arr as $station_no)
 			{
-				// create member_car
-				$data_car = array
-						(
-							'station_no' => $data['station_no'],
-							'member_no' => $data['member_no'],                    
-							'lpr' => $data['lpr'],                    
-							'lpr_correct' => $data['lpr'],                    
-							'etag' => $data['etag'],                    
-							'start_time' => $data['start_date'],                    
-							'end_time' => $data['end_date']
-						);
-				array_push($data_car_arr, $data_car);
+				foreach($result_arr as $data)
+				{
+					// create member
+					$data_member = array
+					(
+						'member_no' => $data['member_no'],                    
+						'station_no' => $station_no,
+						'member_name' => $data['member_name'],                    
+						'member_attr' => $data['member_attr'],                    
+						'member_type' => $data['member_type'],    
+						'contract_no' => $data['contract_no'],   
+						'mobile_no' => $data['mobile_no'],   
+						'lpr' => $data['lpr'],                   
+						'locked' => $data['locked'],               
+						'etag' => $data['etag'],                   
+						'fee_period' => $data['fee_period'],           							
+						'start_date' => $data['start_date'],                    
+						'end_date' => $data['end_date'],
+						'remarks' => $data['remarks'],
+						'park_time' => $data['park_time'],
+						'valid_time' => $data['valid_time']
+					);
+					array_push($data_member_arr, $data_member);
+						
+					// create member_car
+					$data_car = array
+					(
+						'station_no' => $station_no,
+						'member_no' => $data['member_no'],                    
+						'lpr' => $data['lpr'],                    
+						'lpr_correct' => $data['lpr'],                    
+						'etag' => $data['etag'],                    
+						'start_time' => $data['start_date'],                    
+						'end_time' => $data['end_date']
+					);
+					array_push($data_car_arr, $data_car);
+				}
 			}
 		}
+		*/
+		
+				// 暫時版
+				foreach($result_arr as $data)
+				{
+					// create member
+					$data_member = array
+					(
+						'member_no' => $data['member_no'],                    
+						'station_no' => $data['station_no'], 
+						'member_name' => $data['member_name'],                    
+						'member_attr' => $data['member_attr'],                    
+						'member_type' => $data['member_type'],    
+						'contract_no' => $data['contract_no'],   
+						'mobile_no' => $data['mobile_no'],   
+						'lpr' => $data['lpr'],                   
+						'locked' => $data['locked'],               
+						'etag' => $data['etag'],                   
+						'fee_period' => $data['fee_period'],           							
+						'start_date' => $data['start_date'],                    
+						'end_date' => $data['end_date'],
+						'remarks' => $data['remarks'],
+						'park_time' => $data['park_time'],
+						'valid_time' => $data['valid_time']
+					);
+					array_push($data_member_arr, $data_member);
+						
+					// create member_car
+					$data_car = array
+					(
+						'station_no' => $data['station_no'], 
+						'member_no' => $data['member_no'],                    
+						'lpr' => $data['lpr'],                    
+						'lpr_correct' => $data['lpr'],                    
+						'etag' => $data['etag'],                    
+						'start_time' => $data['start_date'],                    
+						'end_time' => $data['end_date']
+					);
+					array_push($data_car_arr, $data_car);
+				}
 		
 		//trigger_error(SYNC_DATA_LOG_TITLE . '.. test ..' . print_r($data_member_arr, true));
 		
@@ -492,7 +685,17 @@ class Sync_data_model extends CI_Model
 			else if($station_888_arr[$key] == 4)	// 關閉
 			{
 				// 清除	888
-				$this->db->delete('pks_groups', array('station_no' => $station_no_arr[$key]));
+				/*
+				$clean_888_arr = array(
+						'station_no' => $station_no_arr[$key], 
+						'group_id in ' => "('". SYNC_PKS_GROUP_ID_CI . "', '". SYNC_PKS_GROUP_ID_MI . "')"
+					);
+					*/
+				$this->db
+					->where('station_no', $station_no_arr[$key])
+					->where_in('group_id', array(SYNC_PKS_GROUP_ID_CI, SYNC_PKS_GROUP_ID_MI))
+					->delete('pks_groups');
+				trigger_error(__FUNCTION__ . '..clean pks_groups 888..');
 			}
 			else
 			{
@@ -580,6 +783,7 @@ class Sync_data_model extends CI_Model
 		$sync_agent->init(STATION_NO);	// 已帶上的資料場站編號為主
 		$sync_result = $sync_agent->upd_pks_groups(json_encode($pks_group_query_data, JSON_UNESCAPED_UNICODE));
 		trigger_error( SYNC_DATA_LOG_TITLE . '..'. __FUNCTION__ . "..upd_pks_groups.." .  $sync_result);
+		return $sync_result;
     }
 	
 	// 重新載入場站設定
@@ -624,6 +828,7 @@ class Sync_data_model extends CI_Model
 		
 		$station_setting_arr = $station_setting_result['results'];
 		$station_no_arr = array();
+		$station_no_list_arr = array();
 		$station_name_arr = array();
 		$station_888_arr = array();
 		
@@ -636,6 +841,25 @@ class Sync_data_model extends CI_Model
 			array_push($station_name_arr, $data['short_name']);
 			array_push($station_888_arr, $data['station_888']);
 			
+			// 若有設定多個場站, 已多場站設定為主
+			$tmp_station_no_list_arr = explode(SYNC_DELIMITER_ST_NO, $data['station_no_list']);
+			
+			foreach($tmp_station_no_list_arr as $key => $station_no_list_value)
+			{
+				if(intval($station_no_list_value) > 0)
+				{	
+					if(empty($station_no_list_arr))
+						array_push($station_no_list_arr, $station_no_list_value);
+						
+					else if(!array_search($station_no_list_value, $station_no_list_arr))
+						array_push($station_no_list_arr, $station_no_list_value);
+				}
+			}
+			
+			// 若無設定直接放目前場站
+			if(empty($station_no_list_arr))
+				array_push($station_no_list_arr, $station_no);
+			
 			if(!isset($settings[$station_no]))
 			{
 				$settings[$station_no] = array();
@@ -643,13 +867,17 @@ class Sync_data_model extends CI_Model
 			$settings[$station_no]['station_888'] = empty($data['station_888']) ? 1 : $data['station_888'];
 			$settings[$station_no]['mqtt_ip'] = empty($data['mqtt_ip']) ? MQ_HOST : $data['mqtt_ip'];
 			$settings[$station_no]['mqtt_port'] = empty($data['mqtt_port']) ? MQ_PORT : $data['mqtt_port'];
+			$settings[$station_no]['local_ip'] = empty($data['local_ip']) ? STATION_LOCAL_IP : $data['local_ip'];
 		}
-		$station_no_str = implode(SYNC_DELIMITER_ST_NO, $station_no_arr);		// 取值時會用到
-		$station_name_str = implode(SYNC_DELIMITER_ST_NAME, $station_name_arr);	// 純顯示
-		$station_888_str = implode(SYNC_DELIMITER_ST_INFO, $station_888_arr);	// 場站	888 設定
+		
+		$station_no_str = implode(SYNC_DELIMITER_ST_NO, $station_no_arr);			// 取值時會用到
+		$station_no_list_str = implode(SYNC_DELIMITER_ST_NO, $station_no_list_arr);	// 會員資料同步相關
+		$station_name_str = implode(SYNC_DELIMITER_ST_NAME, $station_name_arr);		// 純顯示
+		$station_888_str = implode(SYNC_DELIMITER_ST_INFO, $station_888_arr);		// 場站	888 設定
 		
 		// 設定到 mcache
 		$this->vars['mcache']->set(MCACHE_STATION_NO_STR, $station_no_str);
+		$this->vars['mcache']->set(MCACHE_STATION_NO_LIST_STR, $station_no_list_str);
 		$this->vars['mcache']->set(MCACHE_STATION_NAME_STR, $station_name_str);
 		$this->vars['mcache']->set(MCACHE_STATION_IP_STR, $station_ip_str);
 		$this->vars['mcache']->set(MCACHE_STATION_PORT_STR, $station_port_str);
@@ -662,6 +890,7 @@ class Sync_data_model extends CI_Model
 	public function station_setting_query($reload=false)
 	{
 		$station_no_str = $this->vars['mcache']->get(MCACHE_STATION_NO_STR);
+		$station_no_list_str = $this->vars['mcache']->get(MCACHE_STATION_NO_LIST_STR);
 		$station_name_str = $this->vars['mcache']->get(MCACHE_STATION_NAME_STR);
 		$station_ip_str = $this->vars['mcache']->get(MCACHE_STATION_IP_STR);
 		$station_port_str = $this->vars['mcache']->get(MCACHE_STATION_PORT_STR);
@@ -669,6 +898,7 @@ class Sync_data_model extends CI_Model
 		$settings = $this->vars['mcache']->get(MCACHE_STATION_SETTINGS);
 	
 		if(	$reload	|| 
+			empty($station_no_list_str)	|| 	
 			empty($station_no_str) 		|| 	empty($station_name_str)	|| 
 			empty($station_ip_str) 		|| 	empty($station_port_str)			||	
 			empty($station_888_str)		||
@@ -680,6 +910,7 @@ class Sync_data_model extends CI_Model
 			if($result == 'ok')
 			{
 				$station_no_str = $this->vars['mcache']->get(MCACHE_STATION_NO_STR);
+				$station_no_list_str = $this->vars['mcache']->get(MCACHE_STATION_NO_LIST_STR);
 				$station_name_str = $this->vars['mcache']->get(MCACHE_STATION_NAME_STR);
 				$station_ip_str = $this->vars['mcache']->get(MCACHE_STATION_IP_STR);
 				$station_port_str = $this->vars['mcache']->get(MCACHE_STATION_PORT_STR);
@@ -705,6 +936,7 @@ class Sync_data_model extends CI_Model
 		
 		$station_setting = array();
 		$station_setting['station_no'] = $station_no_str;
+		$station_setting['station_no_list'] = $station_no_list_str;
 		$station_setting['station_name'] = $station_name_str;
 		$station_setting['station_ip'] = $station_ip_str;
 		$station_setting['station_port'] = $station_port_str;

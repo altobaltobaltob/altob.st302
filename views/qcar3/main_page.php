@@ -14,7 +14,7 @@
     <!-- Timeline CSS -->
     <link href="<?=BOOTSTRAPS?>dist/css/timeline.css" rel="stylesheet">
     <!-- Custom CSS -->
-    <link href="<?=BOOTSTRAPS?>dist/css/sb-admin-3.css" rel="stylesheet">
+    <link href="<?=BOOTSTRAPS?>dist/css/sb-admin-qcar3.css" rel="stylesheet">
     <!-- Morris Charts CSS -->
     <link href="<?=BOOTSTRAPS?>bower_components/morrisjs/morris.css" rel="stylesheet">
     <!-- Custom Fonts -->
@@ -27,7 +27,7 @@
         <div id="page-wrapper"><?php /* 主要資料顯示區 */ ?>
             <div class="row">
                 <div class="col-lg-12">
-                    <!--h1 class="page-header">歐特儀自動化服務機</h1--><?php /* 右側小表頭 */ ?>
+                    <h1 class="page-header">歐特儀自動化服務機</h1><?php /* 右側小表頭 */ ?>
 					&nbsp;
                 </div>
                 <!-- /.col-lg-12 -->
@@ -170,7 +170,19 @@
 
 		</div>
 
-
+		<div data-items="B1" class="row" style="display:none;">
+			<div class="col-lg-12 col-sm-12">
+				<table class="table table-striped table-bordered table-hover"">
+					<tbody>
+						<tr>
+							<td style="text-align:center;vertical-align: middle;">
+								<canvas id="b1canvas"></canvas>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+        </div>
 
 
         <!-- /#page-wrapper -->
@@ -189,7 +201,7 @@
 
 	<!-- virtual keyboard -->
   	<link href="<?=WEB_LIB?>virtual-keyboard/css/jquery-ui.min.css" rel="stylesheet">
-	<link href="<?=WEB_LIB?>virtual-keyboard/css/keyboard.css" rel="stylesheet">
+	<link href="<?=WEB_LIB?>virtual-keyboard/css/keyboard_qcar3.css" rel="stylesheet">
   	<script src="<?=WEB_LIB?>virtual-keyboard/js/jquery-ui.min.js"></script>
   	<script src="<?=WEB_LIB?>virtual-keyboard/js/jquery.keyboard.js"></script>
   	<script src="<?=WEB_LIB?>virtual-keyboard/js/jquery.keyboard.extension-caret.js"></script>
@@ -201,6 +213,12 @@
 	<!-- moment -->
 	<script src="<?=WEB_LIB?>js/moment.min.js"></script>
 	
+	<!-- altob ats map -->
+	<script src="<?=WEB_LIB?>js/altob-ats-map.js"></script> 
+	
+	<!-- altob settings -->
+	<script src="<?=WEB_LIB?>js/altob.settings.js"></script>
+	
 	<!-- jQuery validate -->
 	<script src="<?=WEB_LIB?>form-validator/jquery.form-validator.min.js"></script>
 
@@ -211,6 +229,21 @@
 </html>
 
 <script>
+
+
+	<?php /* 樓層平面圖 */ ?>
+	AltobObject.AtsMap({
+		mapInfo: {
+			map1: {
+				floorName: 'B1',
+				canvasId: 'b1canvas',
+				src: '<?=SERVER_URL?>i3/pics/b1_map.png',
+				initialImageRatio: AltobObject.settings.qcar3.main_page.B1.initialImageRatio,
+				shiftLeft: AltobObject.settings.qcar3.main_page.B1.shiftLeft,
+				shiftUp: AltobObject.settings.qcar3.main_page.B1.shiftUp
+			}
+		}
+	});
 
 <?php /* alertify function */ ?>
 function alertify_count_down($msg, $delay)
@@ -324,9 +357,8 @@ function check_lpr(idx)
             	show_item("output_pks");
 
 				// 顯示位置圖
-				if (jdata["group_id"]){
-					//var groupSplit = jdata["group_id"].split('-'); // ex. B3-3
-					//var floor = groupSplit[0];
+				if (jdata["group_id"])
+				{
 					var floor = jdata["floors"];
 					var x = jdata["posx"];
 					var y = jdata["posy"];

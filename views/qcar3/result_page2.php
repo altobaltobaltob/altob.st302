@@ -33,82 +33,22 @@
                 <!-- /.col-lg-12 -->
             </div>
             <!-- /.row -->
-            
-            <?php /* ----- 查車作業 ----- */ ?>
-            <div data-items="input_lpr" class="row">
+			
+			<?php /* ----- 查詢結果 ----- */ ?>
+            <div data-items="not_found" class="row">
                 <div class="col-lg-12">
                     <div class="panel panel-default">
-                        <div class="panel-heading" style="font-size:28px;"><?php /* 資料顯示區灰色小表頭 */ ?>
-                            車位查詢
+                        <div class="panel-heading" style="font-size:64px;"><?php /* 資料顯示區灰色小表頭 */ ?>
+                            查車結果：查無 <span id="not_found_lpr" style="font-size:64px;color:blue;"></span> 在席資料
                         </div>
-                        <div class="panel-body">
-							<div data-rows class="row" style="font-size:28px;">
-								<div class="col-lg-8">
-									<form id="fuzzy_search_lpr" role="form" method="post">
-										<div class="form-group">
-											<input type="text" id="fuzzy_input" name="fuzzy_input" class="form-control" style="text-transform:uppercase;height:64px;font-size:32px;"
-												placeholder="請輸入車牌關鍵字 ( 3 到 7 碼 ex. 111)"
-												autofocus required pattern="[A-Za-z0-9]*"
-												data-validation="length"
-												data-validation-length="3-7"
-												data-validation-error-msg="請輸入車牌關鍵字 ( 3 到 7 碼  ex. 111)">
-										</div>
-										
-										&nbsp;&nbsp;
-										<button type="reset" class="btn btn-default" style="font-size:28px;" onclick="$('#fuzzy_search_lpr_msg').text('');">清除</button>
-										&nbsp;&nbsp;
-										<span id='fuzzy_search_lpr_msg' style="font-size:28px;color:red;"></span>
-										&nbsp;&nbsp;
-										<!--button type="submit" class="btn btn-large btn-success pull-right" style="font-size:28px;">搜尋車牌</button-->
-									</form>
-								</div>
-							</div>
-
-							<br/>
-
-							<!--div id="carin_query_list" class="col-lg-12 dataTable_wrapper" style="display:none; font-size:20px; max-height:300px">
-                                <table id="lpr_query_list" class="table table-striped table-bordered table-hover">
-									<thead>
-											<tr>
-												<th style="text-align:center;">車號</th>
-												<th style="text-align:center;">進場時間</th>
-												<th style="text-align:center;">在席照片</th>
-												<th style="text-align:center;">功能</th>
-											</tr>
-									</thead>
-									<tbody id="carin_query_tbody" style="font-size:28px;"></tbody>
-                                </table>
-                            </div-->
-							
-							<div id="carin_query_list" class="col-lg-12 dataTable_wrapper" style="display:none; max-height: 300px; overflow-y: auto">
-								<table id="lpr_query_list" class="table table-striped table-hover">
-									<thead>
-										<tr>
-										<th style="text-align:center;">車號</th>
-										<th style="text-align:center;">進場時間</th>
-										<th style="text-align:center;">在席照片</th>
-										<th style="text-align:center;">功能</th>
-										</tr>
-									</thead>
-									<tbody id="carin_query_tbody" style="font-size:28px;"></tbody>
-								</table>
-							</div><!-- end of modal-body --> 
-							
-							
-							
-                        </div>
-                        <!-- /.panel-body -->
-                    </div>
-                    <!-- /.panel -->
-                </div>
-                <!-- /.col-lg-12 -->
-            </div>
-            <?php /* ----- 查詢作業(結束) ----- */ ?>
+					</div>
+				</div>
+			</div>
 
 			<?php /* ----- 查詢結果 ----- */ ?>
             <!-- div data-items="rent_sync" class="row" style="display:none;"-->
-            <div data-items="output_pks" class="row" style="display:none;">
-                <div class="col-lg-6 col-sm-6">
+            <div data-items="output_pks" class="row" style="display:none; height:100%">
+                <div class="col-lg-3 col-sm-3">
                     <div class="panel panel-default">
                         <div class="panel-heading" style="font-size:28px;"><?php /* 資料顯示區灰色小表頭 */ ?>
                             查車結果
@@ -130,11 +70,27 @@
                                             <td style="text-align:right;vertical-align: middle;">停入時間</td>
                                             <td id="show_update_time" style="text-align:left;vertical-align: middle;"></td>
                                         </tr>
-                                        <tr>
+                                        <!--tr>
                                             <td colspan="2" style="text-align:center;vertical-align: middle;">
 												<button type="button" class="btn btn-large btn-success pull-right" style="font-size:28px;" onclick="show_item('input_lpr');">結束查詢</button>
                                             </td>
+                                        </tr-->
+										
+										<tr>
+                                            <td style="text-align:right;vertical-align: middle;">在席照片</td>
+                                            <td style="text-align:left;vertical-align: middle;">
+												<table class="table table-striped table-bordered table-hover"">
+													<tbody>
+														<tr>
+															<td style="text-align:center;vertical-align: middle;">
+																<img id="show_img" style="max-width:150px" />
+															</td>
+														</tr>
+													</tbody>
+												</table>
+											</td>
                                         </tr>
+										
                                         </tbody>
                                 </table>
                                 </div>
@@ -146,7 +102,31 @@
                     </div>
                     <!-- /.panel -->
                 </div>
-				<div class="col-lg-6 col-sm-6">
+				
+				<!--div class="col-lg-9 col-sm-9">
+					<table class="table table-striped table-hover">
+						<thead><tr><th style="text-align:center;">停車位置 : B1 樓層</th></tr></thead>
+						<tbody>
+							<canvas id="b1canvas"></canvas>
+						</tbody>
+					</table>
+				</div-->
+				
+				<div class="col-lg-9 col-sm-9">
+					<div class="panel panel-default" style="min-height: 1200px">
+						<div class="panel-heading" style="font-size:28px;"><span>停車位置 : B1 樓層</span></div>
+						<div class="panel-body"><canvas id="b1canvas"></canvas></div>
+					</div>
+				</div>
+				
+				<!--div class="col-lg-9 col-sm-9" style="height=1000px">
+					<div class="panel panel-default">
+						<div class="panel-heading"><span>停車位置 : B1 樓層</span></div>
+						<div class="panel-body"><canvas id="b1canvas"></canvas></div>
+					</div>
+				</div-->
+				
+				<!--div class="col-lg-3 col-sm-6">
 					<div class="panel panel-default">
                         <div class="panel-heading" style="font-size:28px;">
                             在席照片
@@ -157,15 +137,15 @@
 							<table class="table table-striped table-bordered table-hover"">
 								<tbody>
 									<tr>
-										<td colspan="2" style="text-align:center;vertical-align: middle;">
-											<img id="show_img" style="max-width:300px" />
+										<td style="text-align:center;vertical-align: middle;">
+											<img id="show_img" style="max-height:200px" />
                                         </td>
 									</tr>
 								</tbody>
 							</table>
 						</div>
 					</div>
-				</div>
+				</div-->
                 <!-- /.col-lg-12 -->
 
 		</div>
@@ -203,6 +183,12 @@
 	
 	<!-- jQuery validate -->
 	<script src="<?=WEB_LIB?>form-validator/jquery.form-validator.min.js"></script>
+	
+	<!-- altob ats map -->
+	<script src="<?=WEB_LIB?>js/altob-ats-map.js"></script> 
+	
+	<!-- altob settings -->
+	<script src="<?=WEB_LIB?>js/altob.settings.js"></script>
 
     <!-- Custom Theme JavaScript -->
     <script src="<?=BOOTSTRAPS?>dist/js/sb-admin-2.js"></script>
@@ -249,6 +235,35 @@ function reset_query()
 	$("#fuzzy_input").val("");
 	$("#carin_query_list").hide();
 	return false;
+}
+
+// 取得搜尋結果
+var PKS_RESULT = {};
+PKS_RESULT.lpr = '<?= $lpr; ?>';
+PKS_RESULT.pksno = '<?= $pksno; ?>';
+PKS_RESULT.pic_name = '<?= $pic_name; ?>';
+PKS_RESULT.update_time = '<?= $update_time; ?>';
+PKS_RESULT.in_time = '<?= $in_time; ?>';
+PKS_RESULT.posx = '<?= $posx; ?>';
+PKS_RESULT.posy = '<?= $posy; ?>';
+PKS_RESULT.group_id = '<?= $group_id; ?>';
+PKS_RESULT.group_name = '<?= $group_name; ?>';
+PKS_RESULT.floors = '<?= $floors; ?>';
+
+if(PKS_RESULT.pksno == '')
+{
+	$("#not_found_lpr").text(PKS_RESULT.lpr);
+	show_item("not_found");
+}
+else
+{
+	$("#show_lpr").text(PKS_RESULT.lpr);
+	$("#show_floors").html(PKS_RESULT.group_name+"<br/> ( 車格: " + PKS_RESULT.pksno.substr(-3, 3) +" )");
+	$("#show_update_time").text(PKS_RESULT.in_time);
+    $("#show_img").attr("src", "<?=SERVER_URL?>pkspic/" + PKS_RESULT.pic_name);
+
+	// 顯示查車結果
+	show_item("output_pks");
 }
 
 var refreshIntervalId = 0; // timer id
@@ -393,36 +408,16 @@ $(document).ready(function()
 				}
 
 				$("#carin_query_tbody").html(tmp_str_array.join(''));
+
 				$("#carin_query_list").show();
-            
-				// 若只找到一台, 直接跳到結果頁
-				if(idx == 0)
-				{
-					check_lpr(0);
-				}
             }
         });
     });
-	
-	// Custom: altob-keyaction
-  	// ********************
-	$.extend($.keyboard.keyaction, {
-		accept : function(base) {
-			base.close(true); // same as base.accept();
-			
-			// 直接 submit
-			$( "#fuzzy_search_lpr" ).submit();
-			
-			return false;     // return false prevents further processing
-		}
-	});
 	
 	// Custom: altob-input
   	// ********************
   	$('#fuzzy_input').keyboard({
 
-		usePreview: false,
-	
 		css : {
 		  // input & preview styles
 		  input          : 'ui-widget-content ui-corner-all',
@@ -436,17 +431,6 @@ $(document).ready(function()
 		  buttonAction   : 'ui-state-active',
 		  // used when disabling the decimal button {dec} when a decimal exists in the input area
 		  buttonDisabled : 'ui-state-disabled'
-		},
-		
-		position : {
-		  // null (attach to input/textarea) or a jQuery object (attach elsewhere)
-		  of : null,
-		  my : 'center top',
-		  at : 'center top',
-		  // at2 is used when "usePreview" is false (centers keyboard at the bottom
-		  // of the input/textarea)
-		  at2: 'center bottom',
-		  collision: 'flipfit flipfit'
 		},
 
   		display: {
@@ -469,37 +453,23 @@ $(document).ready(function()
   		}
 
   	});
-
-	// 定時自動更新頁面
-	(function autoReloadPage(){
-		var pageReloadTimeMillis = 60000;			// 頁面, 自動重新載入週期 ( 1 min )
-		var pageCheckReloadTimeMillis = 10000;		// 頁面, 判斷重新載入週期 ( 10 sec )
-		var pageShowReloadTimeMillis = 50000;		// 頁面, 開始顯示倒數週期 ( 50 sec )
-		var aliveTime = moment();
-		var countdownTimeMillis = pageReloadTimeMillis;
-		$(document.body).bind("mousemove keypress", function(e) {
-			aliveTime = moment();
-			countdownTimeMillis = pageReloadTimeMillis;
-		});
-		function refresh() {
-			if(moment() - aliveTime >= pageReloadTimeMillis) // 如果頁面沒動作, 才更新
-				window.location.reload(true);
-			else{
-				countdownTimeMillis -= pageCheckReloadTimeMillis;
-				if(countdownTimeMillis < pageCheckReloadTimeMillis)
-				{
-					alertify_count_down("重新載入中..請稍候..", pageCheckReloadTimeMillis);	
-				}
-				else if(countdownTimeMillis < pageShowReloadTimeMillis){
-					alertify_count_down("倒數: " + (countdownTimeMillis / 1000) + " 秒, 重新載入畫面..", pageCheckReloadTimeMillis);	
-				}
-				setTimeout(refresh, pageCheckReloadTimeMillis);
+	
+	<?php /* 樓層平面圖 */ ?>
+	AltobObject.AtsMap({
+		mapInfo: {
+			map1: {
+				floorName: 'B1',
+				canvasId: 'b1canvas',
+				src: '<?=SERVER_URL?>i3/pics/b1_map.png',
+				initialImageRatio: AltobObject.settings.qcar3.result_page.B1.initialImageRatio,
+				shiftLeft: AltobObject.settings.qcar3.result_page.B1.shiftLeft,
+				shiftUp: AltobObject.settings.qcar3.result_page.B1.shiftUp
 			}
 		}
-		setTimeout(refresh, pageCheckReloadTimeMillis);
-	})();
+	});
+	
+	// 畫出指定位置
+	AltobObject.AtsMap.drawPosition(PKS_RESULT.floors, PKS_RESULT.posx, PKS_RESULT.posy);
 
-	// 自動鎖定輸入欄位
-	$( "#fuzzy_input" ).focus();
 });
 </script>

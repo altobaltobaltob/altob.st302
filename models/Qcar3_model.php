@@ -1,9 +1,9 @@
 <?php             
 /*
-file: Qcar2_model.php 查車2
+file: Qcar3_model.php 查車3
 */                   
 
-class Qcar2_model extends CI_Model 
+class Qcar3_model extends CI_Model 
 {        
 	function __construct()
 	{
